@@ -41,7 +41,7 @@ pub fn get_initial_levels() {
             if x < 33 || x == 39 || x == 49 || x == 51 || x == 52 { increaseGrow(t_list[x], 10); }
             else {
                 let grow = get_Grow(t_list[x], None);
-                if ( !Capability_is_zero(grow, None)) { increaseGrow(t_list[x], 10); }
+                if ( !Capability_is_zero(grow, None)) { increaseGrow(t_list[x], 15); }
             }
             let job = GetJob(t_list[x], None);
             let jid = get_jid(t_list[x], None);
@@ -121,20 +121,27 @@ pub fn auto_level_enemies(this: &PersonData, enemy_level: i32, index: usize){
                 if total_level < person_total_level.into() {
                      // Already promoted but needs to demote (load a previous save, average party level is lower, etc)
                     if total_level <= 20 { 
-                        
-                        demote_person(this, total_level);
+                        if total_level < initial_level.into() {
+                            demote_person(this, initial_level.into());
+                        }
+                        else {
+                            demote_person(this, total_level);
+                        }
                         let name = get_Name(this, None).get_string().unwrap();
                         println!("#{} - {} is demoted at level {}", index, name, total_level);
                     }
                     else {
                         let mut new_person_level = total_level - 20;
                         // if new level is lower than person's initial level, new level = initial Level
-                        if ( new_person_level < initial_level.into()  ) { new_person_level = initial_level.into() ; }
+                        //if ( new_person_level < initial_level.into()  ) { new_person_level = initial_level.into() ; }
                         set_level(this, new_person_level.try_into().unwrap(), None);
+
                     }
                 }
                 else {
+                    let name = get_Name(this, None).get_string().unwrap();
                     let new_person_level = total_level - 20;
+                    println!("#{} - {} is at level {}/{}", index, name, new_person_level, total_level);
                     set_level(this, new_person_level.try_into().unwrap(), None);
                 }
             }
@@ -206,32 +213,32 @@ pub fn auto_level_persons(){
             }
         }
         // DLC 
+        println!("Scaling DLC Characters");
         unsafe {
-        if player_average <= 20 {
-            let gregory_low : &str = "JID_マージ";
-            let madeline_low: &str = "JID_アクスアーマー";
-            person_set_Jid(t_list[1121], gregory_low.into(), None);
-            person_set_Jid(t_list[1122], madeline_low.into(), None);
+            if player_average <= 20 {
+                let gregory_low : &str = "JID_マージ";
+                let madeline_low: &str = "JID_アクスアーマー";
+                person_set_Jid(t_list[1121], gregory_low.into(), None);
+                person_set_Jid(t_list[1122], madeline_low.into(), None);
 
-            set_level(t_list[1121], player_average.try_into().unwrap(), None);
-            set_level(t_list[1122], player_average.try_into().unwrap(), None);
-            set_level(t_list[1116], player_average.try_into().unwrap(), None);
-            set_level(t_list[1118], player_average.try_into().unwrap(), None);
-            set_level(t_list[1120], player_average.try_into().unwrap(), None);
-        }
-        else {
-            let gregory_high : &str = "JID_セイジ";
-            let madeline_high: &str = "JID_ジェネラル";
-            person_set_Jid(t_list[1121], gregory_high.into(), None);
-            person_set_Jid(t_list[1122], madeline_high.into(), None);
-            let new_person_level = (player_average as u8) - 20;
-            set_level(t_list[1121], new_person_level.try_into().unwrap(), None);
-            set_level(t_list[1122], new_person_level.try_into().unwrap(), None);
-
-            set_level(t_list[1116], player_average.try_into().unwrap(), None);
-            set_level(t_list[1118], player_average.try_into().unwrap(), None);
-            set_level(t_list[1120], player_average.try_into().unwrap(), None);
-        }
+                set_level(t_list[1121], player_average.try_into().unwrap(), None);
+                set_level(t_list[1122], player_average.try_into().unwrap(), None);
+                set_level(t_list[1116], player_average.try_into().unwrap(), None);
+                set_level(t_list[1118], player_average.try_into().unwrap(), None);
+                set_level(t_list[1120], player_average.try_into().unwrap(), None);
+            }
+            else {
+                let gregory_high : &str = "JID_セイジ";
+                let madeline_high: &str = "JID_ジェネラル";
+                person_set_Jid(t_list[1121], gregory_high.into(), None);
+                person_set_Jid(t_list[1122], madeline_high.into(), None);
+                let new_person_level = (player_average as u8) - 20;
+                set_level(t_list[1121], new_person_level.try_into().unwrap(), None);
+                set_level(t_list[1122], new_person_level.try_into().unwrap(), None);
+                set_level(t_list[1116], player_average.try_into().unwrap(), None);
+                set_level(t_list[1118], player_average.try_into().unwrap(), None);
+                set_level(t_list[1120], player_average.try_into().unwrap(), None);
+            }
         }
     }
 }
