@@ -1,11 +1,20 @@
 #![feature(lazy_cell, ptr_sub_ptr)]
 use unity::prelude::*;
 use unity::{il2cpp::class::Il2CppRGCTXData, prelude::*};
-use engage::gamedata::{*, person::*};
-use engage::{gamevariable::*, gameuserdata::*};
+use engage::gamedata::{*, person::*, unit::*};
+use engage::{sequence::*, gamevariable::*, gameuserdata::*};
 mod autolevel;
 mod engage_functions;
 
+//To force level change if level is greater than 20 for non player related units
+#[skyline::hook(offset = 0x01a0b1b0)]
+pub fn autoGrowCap(this: &Unit, level: i32, target_level: i32, method_info: OptionalMethod){
+    call_original!(this, level, target_level, method_info);
+    unsafe {
+        let asset_Force = engage_functions::person_get_AssetForce(this.person, None);
+        if asset_Force != 0 { unit::unit_set_level(this, level, None);  } 
+    }
+}
 pub fn updateIgnots(){
     unsafe {
         let instance = GameUserData::get_instance();
@@ -31,7 +40,7 @@ pub fn updateIgnots(){
                 engage_functions::set_well_flag(2, None);
                 let seed = ironCount + steelCount + silverCount + BondCount;
                 engage_functions::set_seed(seed, None);
-            }
+            };
         }
     }
 }
@@ -60,6 +69,6 @@ pub fn get_ignots(this: &GameUserData, method_info: OptionalMethod){
 }
 #[skyline::main(name = "Autolevel")]
 pub fn main() {
-    skyline::install_hooks!(auto_level_enemies, get_ignots);
+    skyline::install_hooks!(auto_level_enemies, get_ignots, autoGrowCap);
     println!("Autolevel plugin installed");
 }
