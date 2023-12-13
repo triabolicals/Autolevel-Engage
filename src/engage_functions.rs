@@ -2,8 +2,9 @@ use skyline::patching::Patch;
 use unity::prelude::*;
 use unity::{il2cpp::class::Il2CppRGCTXData, prelude::*, system::*};
 use engage::gamedata::*;
+use engage::{force::*, gamevariable::*, gameuserdata::*, gamedata::unit::*};
 use engage::gamedata::person::Capability;
-
+use engage::gamedata::person::SkillArray;
 //Functions from the game 
 
 //Capability Functions
@@ -19,10 +20,13 @@ pub struct CapabilitySbyte {}
 #[skyline::from_offset(0x25bdf90)]
 pub fn CapabilitySbyte_add(this: &CapabilitySbyte, i: i32, v: u8,  method_info: OptionalMethod);
 
+//SkillArray
+#[skyline::from_offset(0x02482850)]
+pub fn skillarray_remove(this: &SkillArray, sid: &Il2CppString, method_info: OptionalMethod) -> bool;
+
 //PersonData Functions
 #[skyline::from_offset(0x1f26140)]
 pub fn person_get_combat_bgm(this: &PersonData, method_info: OptionalMethod) -> &Il2CppString;
-
 
 //JobData Functions
 #[unity::from_offset("App", "JobData", "get_DiffGrowLunatic")]
@@ -70,6 +74,9 @@ pub fn person_set_Jid(this: &PersonData, value: &Il2CppString, method_info: Opti
 #[skyline::from_offset(0x2054980)]
 pub fn job_get_high_job1(this: &JobData, method_info: OptionalMethod) -> &Il2CppString;
 
+#[skyline::from_offset(0x2054a20)]
+pub fn job_get_high_job2(this: &JobData, method_info: OptionalMethod) -> &Il2CppString;
+
 #[skyline::from_offset(0x2055fe0)]
 pub fn job_GetLowJobs(this: &JobData, method_info: OptionalMethod) -> &List<JobData>;
 
@@ -98,23 +105,24 @@ pub fn job_getWeaponSpecial(this: &JobData, method_info: OptionalMethod) -> i8;
 #[unity::from_offset("App", "JobData", "get_WeaponSword")]
 pub fn job_getWeaponSword(this: &JobData, method_info: OptionalMethod) -> i8;
 
-//Well Functions
-#[skyline::from_offset(0x293a700)]
-pub fn get_IsItemReturn(method_info: OptionalMethod) -> bool;
+//Chapter Data
+#[unity::from_offset("App", "ChapterData", "set_RecommendedLevel")]
+pub fn chapter_set_recommended_level(this: &ChapterData, value: u8, method_info: OptionalMethod);
 
-#[skyline::from_offset(0x2939a80)]
-pub fn set_well_flag(value: i32, method_info: OptionalMethod);
-
-#[skyline::from_offset(0x2939dc0)]
-pub fn set_well_level(value: i32, method_info: OptionalMethod);
-
-#[skyline::from_offset(0x293a100)]
-pub fn set_seed(value: i32, method_info: OptionalMethod);
+#[unity::from_offset("App", "ChapterData", "get_RecommendedLevel")]
+pub fn chapter_get_recommended_level(this: &ChapterData, method_info: OptionalMethod) -> u8;
 
 //Other
 //Check if Il2CppString is empty
 #[skyline::from_offset(0x3780700)]
 pub fn is_null_empty(this: &Il2CppString, method_info: OptionalMethod) -> bool;
+
+#[skyline::from_offset(0x3784700)]
+pub fn string_start_with(this: &Il2CppString, value: &Il2CppString, method_info: OptionalMethod) -> bool;
+
+pub fn str_start_with(this: &Il2CppString, value: &str) -> bool {
+   unsafe { string_start_with(this, value.into(), None) }
+}
 
 //Get Average Level of Party
 #[skyline::from_offset(0x2b4afa0)]
@@ -122,3 +130,27 @@ pub fn GetAverageLevel(difficulty: i32, sortieCount: i32, method_info: OptionalM
 
 #[skyline::from_offset(0x1f25e60)]
 pub fn person_get_AssetForce(this: &PersonData, method_info: OptionalMethod) -> i32;
+
+//Function that does the level up
+#[skyline::from_offset(0x01a3a040)]
+pub fn Unit_LevelUP(this: &Unit, abort: i32, method_info: OptionalMethod);
+
+#[skyline::from_offset(0x02616200)]
+pub fn Force_Get(forceType: i32, method_info: OptionalMethod) -> &'static Force;
+
+#[skyline::from_offset(0x02af9850)]
+pub fn chapter_set_flag(this: &ChapterData, value: i32, method_info: OptionalMethod);
+
+#[unity::from_offset("App", "Unit", "AddSkillPoint")]
+pub fn unit_add_SP(this: &Unit, value: i32, method_info: OptionalMethod);
+
+
+// Random Functions
+#[unity::class("App", "Random")]
+pub struct Random {}
+
+#[unity::from_offset("App", "Random", "get_Game")]
+pub fn random_get_Game(method_info: OptionalMethod) -> &'static Random;
+
+#[skyline::from_offset(0x023751b0)]
+pub fn random_getMinMax(this: &Random, min: i32, max: i32, method_info: OptionalMethod) -> i32;
