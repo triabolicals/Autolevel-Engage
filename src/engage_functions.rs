@@ -4,6 +4,7 @@ use unity::{il2cpp::class::Il2CppRGCTXData, prelude::*, system::*};
 use engage::gamedata::*;
 use engage::{force::*, gamevariable::*, gameuserdata::*, gamedata::unit::*};
 use engage::gamedata::person::Capability;
+use engage::gamedata::person::CapabilitySbyte;
 use engage::gamedata::person::SkillArray;
 //Functions from the game 
 
@@ -14,11 +15,8 @@ pub fn Capability_add(this: &Capability, i: i32, v: u8, method_info: OptionalMet
 #[skyline::from_offset(0x25bcda0)]
 pub fn Capability_is_zero(this: &Capability, method_info: OptionalMethod) -> bool;
 
-#[unity::class("App", "CapabilitySbyte")]
-pub struct CapabilitySbyte {}
-
 #[skyline::from_offset(0x25bdf90)]
-pub fn CapabilitySbyte_add(this: &CapabilitySbyte, i: i32, v: u8,  method_info: OptionalMethod);
+pub fn CapabilitySbyte_add(this: &CapabilitySbyte, i: i32, v: i8,  method_info: OptionalMethod);
 
 //SkillArray
 #[skyline::from_offset(0x02482850)]
