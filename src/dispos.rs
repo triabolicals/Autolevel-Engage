@@ -10,12 +10,16 @@ pub const ENGAGE: &[&str] = &[ "AI_AT_EngageAttack", "AI_AT_EngageAttack", "AI_A
 pub static mut EMBLEMS_USED: [bool; 20] = [false; 20];
 use crate::autolevel::NG_KEY;
 
+//Swap FX chapter copies with the actual unit
 #[skyline::hook(offset=0x01cfa570)]
 pub fn disposdata_set_pid(this: &DisposData, value: &Il2CppString, method_info: OptionalMethod){
     if str_contains(value, "PID_E00"){
         if str_contains(value, "_エル"){  call_original!(this, "PID_エル".into(), method_info);  }
         else if str_contains(value, "エル_竜化"){ call_original!(this, "PID_エル_竜化".into(), method_info); }
-        else if str_contains(value, "_イル"){ call_original!(this, "PID_E004_イル".into(), method_info); }
+        else if str_contains(value, "_イル"){ 
+            if !GameVariableManager::get_bool("G_Cleared_E006"){ call_original!(this, "PID_E004_イル".into(), method_info);  }
+            else { call_original!(this, "PID_ラファール".into(), method_info);   }
+        }
         else if str_contains(value,"_セレスティア"){ call_original!(this, "PID_セレスティア".into(), method_info); }
         else if str_contains(value,"_グレゴリー") { call_original!(this, "PID_グレゴリー".into(), method_info); }
         else if str_contains(value, "_マデリーン"){ call_original!(this, "PID_マデリーン".into(), method_info); }
@@ -41,7 +45,7 @@ pub fn disposdata_set_flag(this: &DisposData, value: &mut DisposData_FlagField, 
 #[skyline::hook(offset=0x01a0c6c0)]
 pub fn unit_set_status(unit: &Unit, status: i64, method_info: OptionalMethod){
     // status that marks unit as defect and does not appear in the sortie
-    if status == 1073741832 { return;  }
+    if status == 1073741832  { return;  }
     if status == 1073741824 {
         if unit.person.name.get_string().unwrap() == "MPID_Lueur" { return;  }
     }
@@ -51,7 +55,6 @@ pub fn unit_set_status(unit: &Unit, status: i64, method_info: OptionalMethod){
 #[skyline::hook(offset=0x029c4120)]
 pub fn mapdispos_load(fileName: &Il2CppString, method_info: OptionalMethod){
     auto_level_persons();   // Autolevel Peeps here
-    call_original!(fileName, method_info);
     // If FX then autolevel party 
     if str_contains(fileName, "E00"){
         unsafe {
@@ -64,9 +67,9 @@ pub fn mapdispos_load(fileName: &Il2CppString, method_info: OptionalMethod){
             }
         }
     }
-    let NG = GameVariableManager::get_bool(NG_KEY);
-    if NG {
+    if GameVariableManager::get_bool(NG_KEY) {
         unsafe {
+            call_original!(fileName, method_info);
             let diff =  GameUserData::get_difficulty(false);
             for x in 0..20 { EMBLEMS_USED[x] = false; }
             let random = random_get_Game(None);
@@ -101,5 +104,5 @@ pub fn mapdispos_load(fileName: &Il2CppString, method_info: OptionalMethod){
             }
         }
     }
+    else { call_original!(fileName, method_info);  }
 }
-// DisposData Functions

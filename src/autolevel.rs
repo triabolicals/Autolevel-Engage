@@ -3,7 +3,9 @@ use unity::{il2cpp::class::Il2CppRGCTXData, prelude::*};
 use engage::gamedata::{*, person::*};
 use engage::{force::*, gamevariable::*, gameuserdata::*, gamedata::unit::*};
 use crate::engage_functions::*;
+use crate::ng::reset_units;
 
+//GetLearnJobSkilLLevel - JobData
 pub static mut INITIAL_LEVEL : [u8; 1000] = [0; 1000];
 pub static mut INITIAL_REC_LEVEL : [u8; 100] = [0; 100];
 pub static mut CLASS_LEVEL : [u8; 1000] = [0; 1000]; // 1 - 10 - unpromoted, 20 - promoted, - 3 special
@@ -13,6 +15,22 @@ pub static mut FX_end: usize = 0;
 pub static mut GROWTH_SET: bool = false;
 pub const NG_KEY: &str = "G_NG";
 pub const DLC: &[&str] = &["PID_エル", "PID_ラファール", "PID_セレスティア", "PID_グレゴリー", "PID_マデリーン" ];
+
+pub fn is_reverse_recruitment() -> bool {
+    let person = PersonData::get("PID_ヴェイル");
+    unsafe {
+        match person {
+            Some(p) => { 
+                match skillarray_find(get_CommonSkill(p, None), "SID_主人公".into(), None) {
+                    Some(i) => { return true; }
+                    None => { return false; }
+                }
+            },
+            None => { return false; }
+        }
+    }
+    return false;
+}
 
 pub fn autolevel_party(average_num: i32, diff_from_average: i32, limit :bool ){
     // Autolevels force 3
@@ -54,6 +72,7 @@ pub fn multipleLevelUps(unit: &Unit, numberOfLevels: i32){
         }
     }
 }
+
 pub fn is_DLC(unit: &Unit) -> bool {
     let pid = unit.person.pid.get_string().unwrap();
     for i in 0..DLC.len() { if pid == DLC[i] {  return true; }  }
@@ -73,99 +92,9 @@ pub fn autolevel_DLC(){
     }
 }
 
-//Reset World Map and autolevels player units for NG+ when Chapter 26 is completed
-pub fn resetGmap(){
-    GameVariableManager::make_entry_norewind(NG_KEY, 0);
-    let completedGame = GameVariableManager::get_bool("G_Cleared_M026".into());
-    if completedGame {
-        GameVariableManager::set_bool( "G_Cleared_M006".into(), false);
-        GameVariableManager::set_bool( "G_Cleared_M007".into(), false);
-        GameVariableManager::set_bool( "G_Cleared_M008".into(), false);
-        GameVariableManager::set_bool( "G_Cleared_M009".into(), false);
-        GameVariableManager::set_bool( "G_Cleared_M010".into(), false);
-        GameVariableManager::set_bool( "G_Cleared_M011".into(), false);
-        GameVariableManager::set_bool( "G_Cleared_M012".into(), false);
-        GameVariableManager::set_bool( "G_Cleared_M013".into(), false);
-        GameVariableManager::set_bool( "G_Cleared_M014".into(), false);
-        GameVariableManager::set_bool( "G_Cleared_M015".into(), false);
-        GameVariableManager::set_bool( "G_Cleared_M016".into(), false);
-        GameVariableManager::set_bool( "G_Cleared_M017".into(), false);
-        GameVariableManager::set_bool( "G_Cleared_M018".into(), false);
-        GameVariableManager::set_bool( "G_Cleared_M019".into(), false);
-        GameVariableManager::set_bool( "G_Cleared_M020".into(), false);
-        GameVariableManager::set_bool( "G_Cleared_M021".into(), false);
-        GameVariableManager::set_bool( "G_Cleared_M022".into(), false);
-        GameVariableManager::set_bool( "G_Cleared_M023".into(), false);
-        GameVariableManager::set_bool( "G_Cleared_M024".into(), false);
-        GameVariableManager::set_bool( "G_Cleared_M025".into(), false);
-        GameVariableManager::set_bool( "G_Cleared_M026".into(), false);
-        GameVariableManager::set_bool( "G_Cleared_S003".into(), false);
-        GameVariableManager::set_bool( "G_Cleared_S004".into(), false);
-        GameVariableManager::set_bool( "G_Cleared_S005".into(), false);
-        GameVariableManager::set_bool( "G_Cleared_S006".into(), false);
-        GameVariableManager::set_bool( "G_Cleared_S007".into(), false);
-        GameVariableManager::set_bool( "G_Cleared_S008".into(), false);
-        GameVariableManager::set_bool( "G_Cleared_S009".into(), false);
-        GameVariableManager::set_bool( "G_Cleared_S010".into(), false);
-        GameVariableManager::set_bool( "G_Cleared_S011".into(), false);
-        GameVariableManager::set_bool( "G_Cleared_S012".into(), false);
-        GameVariableManager::set_bool( "G_Cleared_S013".into(), false);
-        GameVariableManager::set_bool( "G_Cleared_S014".into(), false);
-        GameVariableManager::set_bool( "G_Cleared_S015".into(), false);
 
-        GameVariableManager::set_number( "G_GmapSpot_M005".into(), 3);
-        GameVariableManager::set_number( "G_GmapSpot_M006".into(), 3);
-        GameVariableManager::set_number( "G_GmapSpot_M007".into(), 1);
-        GameVariableManager::set_number( "G_GmapSpot_M008".into(), 1);
-        GameVariableManager::set_number( "G_GmapSpot_M009".into(), 1);
-        GameVariableManager::set_number( "G_GmapSpot_M010".into(), 1);
-        GameVariableManager::set_number( "G_GmapSpot_M011".into(), 1);
-        GameVariableManager::set_number( "G_GmapSpot_M012".into(), 1);
-        GameVariableManager::set_number( "G_GmapSpot_M013".into(), 1);
-        GameVariableManager::set_number( "G_GmapSpot_M014".into(), 1);
-        GameVariableManager::set_number( "G_GmapSpot_M015".into(), 1);
-        GameVariableManager::set_number( "G_GmapSpot_M016".into(), 1);
-        GameVariableManager::set_number( "G_GmapSpot_M017".into(), 1);
-        GameVariableManager::set_number( "G_GmapSpot_M018".into(), 1);
-        GameVariableManager::set_number( "G_GmapSpot_M019".into(), 1);
-        GameVariableManager::set_number( "G_GmapSpot_M020".into(), 1);
-        GameVariableManager::set_number( "G_GmapSpot_M021M022".into(), 1);
-        GameVariableManager::set_number( "G_GmapSpot_M022".into(), 1);
-        GameVariableManager::set_number( "G_GmapSpot_M023".into(), 1);
-        GameVariableManager::set_number( "G_GmapSpot_M024".into(), 1);
-        GameVariableManager::set_number( "G_GmapSpot_M025".into(), 1);
-
-        GameVariableManager::set_number( "G_GmapSpot_S003".into(), 1);
-        GameVariableManager::set_number( "G_GmapSpot_S004".into(), 1);
-        GameVariableManager::set_number( "G_GmapSpot_S005".into(), 1);
-        GameVariableManager::set_number( "G_GmapSpot_S006".into(), 1);
-        GameVariableManager::set_number( "G_GmapSpot_S007".into(), 1);
-        GameVariableManager::set_number( "G_GmapSpot_S008".into(), 1);
-        GameVariableManager::set_number( "G_GmapSpot_S009".into(), 1);
-        GameVariableManager::set_number( "G_GmapSpot_S010".into(), 1);
-        GameVariableManager::set_number( "G_GmapSpot_S011".into(), 1);
-        GameVariableManager::set_number( "G_GmapSpot_S012".into(), 1);
-        GameVariableManager::set_number( "G_GmapSpot_S013".into(), 1);
-        GameVariableManager::set_number( "G_GmapSpot_S014".into(), 1);
-        GameVariableManager::set_number( "G_GmapSpot_S015".into(), 1);
-        GameVariableManager::set_bool(NG_KEY, true);
-        auto_level_persons();
-        autolevel_party(10, 3, false);
-    }
-}
 // To Determine who is a 'Boss' by checking if they have a special BGM
-pub fn is_boss(this: &PersonData) -> bool {
-    unsafe { 
-        let bgm = person_get_combat_bgm(this, None);
-        return !is_null_empty(bgm, None);
-    }
-}
-// Hooking to refresh gmap for NG+
-#[skyline::hook(offset=0x02b3a3f0)]
-pub fn gmap_load(this: &u64, method_info: OptionalMethod){
-    call_original!(this, method_info);
-    resetGmap();
-}
+pub fn is_boss(this: &PersonData) -> bool { unsafe { !is_null_empty(person_get_combat_bgm(this, None), None) } }
 
 //update "recommended level" to player average
 pub fn update_recommendedLevel(){
@@ -173,7 +102,8 @@ pub fn update_recommendedLevel(){
     unsafe {
         let length = chapters.len();
         let diff =  GameUserData::get_difficulty(false);
-        let mut player_average = GetAverageLevel(2, 14 - 3*diff, None) - 2;
+        let mut player_average = GetAverageLevel(2, 14 - diff, None) - 3;
+        let game_variable = GameUserData::get_variable();
         if player_average < 2 { player_average = 2; }
         for x in 0..length {
             let intial_level = INITIAL_REC_LEVEL[x];
@@ -181,10 +111,18 @@ pub fn update_recommendedLevel(){
                 if INITIAL_REC_LEVEL[x] < player_average.try_into().unwrap() { chapter_set_recommended_level(chapters[x], player_average.try_into().unwrap(), None); }
                 else { chapter_set_recommended_level(chapters[x], intial_level, None); }
             }
+            if str_start_with(chapters[x].cid, "CID_E") {
+                chapter_set_HoldLevel(chapters[x], 0, None);
+                if get_bool(game_variable, GetClearedFlagName(chapters[x], None), None){
+                    if str_start_with(chapters[x].cid, "CID_E004") { chapter_set_flag(chapters[x], 24891, None); }
+                    else if str_start_with(chapters[x].cid, "CID_E005") { chapter_set_flag(chapters[x], 49467, None); }
+                    else if str_start_with(chapters[x].cid, "CID_E006") { chapter_set_flag(chapters[x], 16659, None); }
+                    else { chapter_set_flag(chapters[x], 315, None); }
+                }
+            }
         }
     }
 }
-
 pub fn increaseGrow(this: &PersonData, amount: u8, player: bool){
     unsafe { 
         let grow = get_Grow(this, None);
@@ -220,16 +158,21 @@ pub fn get_initial_levels() {
         let triabolical2 = JobData::get_list_mut().expect("triabolical2 is 'None'");
         let t_list2 = &triabolical2.list.items;
         if !GROWTH_SET {
+            for x in 0..110 {
+                let job = &t_list2[x];
+                if job_is_low(job, None) && job_max_level(job, None) == 40 { job_set_maxLevel(job, 99, None); }
+                else if !job_is_low(job, None) && job_max_level(job, None) == 20 { job_set_maxLevel(job, 99, None); }
+            }
             for x in 0..length {
                 let rec = chapter_get_recommended_level(chapters[x], None);
                 INITIAL_REC_LEVEL[x] = rec;
-                if str_start_with(chapters[x].cid, "CID_M022") { chapter_set_flag(chapters[x], 131, None); }
+                if str_start_with(chapters[x].cid, "CID_M021") { chapter_set_flag(chapters[x], 131, None); }
                 if str_start_with(chapters[x].cid, "CID_E") {
                     chapter_set_HoldLevel(chapters[x], 0, None);
                     chapter_set_flag(chapters[x], 313, None);
                     if str_start_with(chapters[x].cid, "CID_E004") { chapter_set_flag(chapters[x], 24889, None); }
                     if str_start_with(chapters[x].cid, "CID_E005") { chapter_set_flag(chapters[x], 49465, None); }
-                    if str_start_with(chapters[x].cid, "CID_E006") { chapter_set_flag(chapters[x], 16641, None); }
+                    if str_start_with(chapters[x].cid, "CID_E006") { chapter_set_flag(chapters[x], 16657, None); }
                 }
             }
             println!("Getting initial levels and increasing growths");
@@ -237,7 +180,7 @@ pub fn get_initial_levels() {
                 let level = get_level(t_list[x], None); 
                 INITIAL_LEVEL[x] = level; 
                 let assetForce = person_get_AssetForce(t_list[x], None);
-                if x == 2 || get_Pid(t_list[x], None).get_string().unwrap() == "PID_モーヴ" { continue; }
+                if x == 2 || ( get_Pid(t_list[x], None).get_string().unwrap() == "PID_モーヴ" && is_reverse_recruitment() ) { continue; }
                 else if assetForce == 0 { increaseGrow(t_list[x], 15, true); 
                     if x == 55 { increaseGrow(t_list[x], 50, true); }
                 }
@@ -328,7 +271,6 @@ pub fn get_initial_levels() {
             for x in 8..110 {
                 if x < 26 && 10 < x { continue; } 
                 let job = &t_list2[x];
-                if string_contains(job.jid, "JID_裏邪竜ノ子_E5".into(), None) { continue; }
                 let diff_growL = job_get_DiffGrowL(job, None);
                 let diff_growH = job_get_DiffGrowH(job, None);
                 for i in 0..9 {
@@ -372,32 +314,34 @@ pub fn get_initial_levels() {
         let is_NG = GameVariableManager::get_bool(NG_KEY);
         let mut player_cap_increase: i8 = 0;
         let mut npc_cap_increase: i8 = 0;
-
-        let mut genericL_increase: i8 = 0;
-        let mut genericH_increase: i8 = 0;
-        
+        let mut fx_cap_increase: i8 = 0;
+        println!("Current mode {}", LEVEL_SET);
         if LEVEL_SET == 0 && is_NG {
             LEVEL_SET = 2;
-            player_cap_increase = 45;
-            npc_cap_increase = 50;
+            player_cap_increase = 50;
+            npc_cap_increase = 55;
+            fx_cap_increase = 30;
             println!("Setting mode to NG+");
         }
         else if LEVEL_SET == 2 && !is_NG {
-            LEVEL_SET == 1;
+            LEVEL_SET = 1;
             player_cap_increase = -35;
             npc_cap_increase = -35;
+            fx_cap_increase = -30;
             println!("Setting mode to NG from NG+");
         }
         else if LEVEL_SET == 1 && is_NG {
             LEVEL_SET = 2;
             player_cap_increase = 35;
             npc_cap_increase = 35;
+            fx_cap_increase = 30;
             println!("Setting mode to NG+ from NG");
         }
         else if LEVEL_SET == 0 && !is_NG {
             LEVEL_SET = 1;
-            player_cap_increase = 10;
-            npc_cap_increase = 15;
+            player_cap_increase = 15;
+            npc_cap_increase = 20;
+            fx_cap_increase = 20;
             println!("Setting mode to NG");
         }
         if npc_cap_increase != 0 && player_cap_increase != 0 {
@@ -413,19 +357,10 @@ pub fn get_initial_levels() {
                     None => {}
                 }
             }
-        }
-        if genericL_increase != 0 && genericH_increase != 0 {
-            for x in 8..110 {
-                if x < 26 && 10 < x { continue; } 
-                let job = &t_list2[x];
-                let diff_growL = job_get_DiffGrowL(job, None);
-                let diff_growH = job_get_DiffGrowH(job, None);
-                for i in 0..8 {
-                    CapabilitySbyte_add(diff_growL, i, genericL_increase, None);
-                    CapabilitySbyte_add(diff_growH, i, genericH_increase, None);
-                }
-                job_set_DiffGrowL(job, diff_growL, None);
-                job_set_DiffGrowH(job, diff_growH, None);
+            for x in 0..(FX_end-FX_start) {
+                let index: usize = 800+x;
+                let pid_index: usize = (FX_start as usize) +x;
+                increaseCaps(t_list[pid_index], fx_cap_increase); 
             }
         }
     }
@@ -456,6 +391,7 @@ pub fn promote_person(this: &PersonData, total_level: i32){
         }
     }
 }
+
 pub fn demote_person(this: &PersonData, new_level: i32, weaponType: u8){
     unsafe {
         let job = GetJob(this, None);
@@ -483,6 +419,8 @@ pub fn auto_level_enemies(this: &PersonData, enemy_level: i32, index: usize){
         if class_type == 0 { return; }
         let mut total_level = enemy_level;
         if is_boss(this){ total_level = 4 + enemy_level; }
+        else if !Capability_is_zero(get_Grow(this, None), None) { total_level = 2 + enemy_level; }
+
         let current_job = GetJob(this, None);
         // un-promoted case, internal level is assumed to be 0, class max level is assumed to be 20
         if class_type < 10 {
@@ -542,25 +480,20 @@ pub fn auto_level_persons(){
     let NG = GameVariableManager::get_bool(NG_KEY);
     get_initial_levels(); 
     if !GameVariableManager::get_bool( "G_Cleared_M004".into() ) { return; }
-    if NG {     //force casual mode
-        unsafe {
-            if GameUserData::get_game_mode() == GameMode::Classic { GameUserData::set_game_mode(GameMode::Casual); }
-        }
-    }
+    if NG {  unsafe { if GameUserData::get_game_mode() == GameMode::Classic { GameUserData::set_game_mode(GameMode::Casual); } } }
     let triabolical = PersonData::get_list_mut().expect("triabolical is 'None'");
     let t_list = &triabolical.list.items;
     let diff = GameUserData::get_difficulty(false);
     update_recommendedLevel();
     unsafe { 
         //Player_average is exactly Maddening Average - 3
-        let mut player_average = GetAverageLevel(2, 14 - 3*diff, None) - 2;
+        let mut player_average = GetAverageLevel(2, 14 - diff, None) - 3;
         if player_average < 1 { player_average = 1; }
         let new_enemy_Level = player_average + diff*2;
         println!("Player Army Average Level: {}", player_average);
         println!("NPC Level {}", new_enemy_Level);
         for x in 2..53 {
             let initial_level = INITIAL_LEVEL[x];
-            //Playable Characters
             if person_get_AssetForce(t_list[x], None) == 0 {
                 let job = GetJob(t_list[x], None);
                 let mut person_total_level: u8 = initial_level;
@@ -618,10 +551,10 @@ pub fn auto_level_persons(){
         }
     }
 }
-
 //does initial levels upon setting up loading screen tips
 #[skyline::hook(offset=0x01becdf0)]
 pub fn loadtips(this: u64, tips: u64, method_info: OptionalMethod){
     get_initial_levels();
+    update_recommendedLevel();
     call_original!(this, tips, method_info);
 } 

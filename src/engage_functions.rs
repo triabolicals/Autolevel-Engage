@@ -2,7 +2,7 @@ use skyline::patching::Patch;
 use unity::prelude::*;
 use unity::{il2cpp::class::Il2CppRGCTXData, prelude::*, system::*};
 use engage::gamedata::*;
-use engage::{force::*, gamevariable::*, gameuserdata::*, gamedata::unit::*};
+use engage::{force::*, gamevariable::*, gameuserdata::*, gamedata::unit::*, gamedata::WeaponMask};
 use engage::gamedata::person::Capability;
 use engage::gamedata::person::CapabilitySbyte;
 use engage::gamedata::person::SkillArray;
@@ -22,6 +22,9 @@ pub fn CapabilitySbyte_add(this: &CapabilitySbyte, i: i32, v: i8,  method_info: 
 //SkillArray
 #[skyline::from_offset(0x02482850)]
 pub fn skillarray_remove(this: &SkillArray, sid: &Il2CppString, method_info: OptionalMethod) -> bool;
+
+#[skyline::from_offset(0x02487990)]
+pub fn skillarray_find(this: &SkillArray, sid: &Il2CppString, method_info: OptionalMethod) -> Option<u64>;
 
 //PersonData Functions
 #[skyline::from_offset(0x1f26140)]
@@ -66,6 +69,10 @@ pub fn job_get_low(this: &JobData, method_info: OptionalMethod) -> &Il2CppString
 
 #[skyline::from_offset(0x2053e80)]
 pub fn job_max_level(this: &JobData, method_info: OptionalMethod) -> u8;
+
+
+#[skyline::from_offset(0x02053e90)]
+pub fn job_set_maxLevel(this: &JobData, value: u8, method_info: OptionalMethod);
 
 #[skyline::from_offset(0x1f25c70)]
 pub fn person_set_Jid(this: &PersonData, value: &Il2CppString, method_info: OptionalMethod);
@@ -114,6 +121,9 @@ pub fn chapter_set_HoldLevel(this: &ChapterData, value: u8, method_info: Optiona
 #[unity::from_offset("App", "ChapterData", "get_RecommendedLevel")]
 pub fn chapter_get_recommended_level(this: &ChapterData, method_info: OptionalMethod) -> u8;
 
+#[skyline::from_offset(0x02af9b40)]
+pub fn GetClearedFlagName(this: &ChapterData, method_info: OptionalMethod) -> &'static Il2CppString;
+
 //Well Related things
 #[skyline::from_offset(0x293a700)]
 pub fn get_IsItemReturn(method_info: OptionalMethod) -> bool;
@@ -138,13 +148,6 @@ pub fn set_seed(value: i32, method_info: OptionalMethod);
 
 #[unity::from_offset("App", "WellSequence", "GetItem")]
 pub fn well_get_item(this: &u64, method_info: OptionalMethod);
-
-#[unity::from_offset("App", "WellSequence", "CalcItemExchange")]
-pub fn well_CalcItemExchange(this: &u64, level: i32, random: &Random, method_info: OptionalMethod) -> &'static List<ItemData> ;
-
-#[skyline::from_offset(0x293ac80)]
-pub fn well_CreateBind(this: &u64, method_info: OptionalMethod);
-
 
 
 //Other
@@ -184,12 +187,18 @@ pub fn Force_Get(forceType: i32, method_info: OptionalMethod) -> &'static Force;
 #[skyline::from_offset(0x02af9850)]
 pub fn chapter_set_flag(this: &ChapterData, value: i32, method_info: OptionalMethod);
 
+#[unity::from_offset("App", "Unit", "CreateImpl1")]
+pub fn unit_CreateImpl1(this: &Unit, person: &PersonData, job: &JobData, level: i32, random: &Random, method_info: OptionalMethod);
+
+#[unity::from_offset("App", "Unit", "Create")]
+pub fn unit_create(this: &Unit, person: &PersonData, job: &JobData, level: i32, random: &Random, method_info: OptionalMethod);
+
+#[unity::from_offset("App","Force","Transfer")]
+pub fn force_transfer(this: &Force, forcetype: i32, isLast: bool,method_info: OptionalMethod);
+
 // Random Functions
 #[unity::class("App", "Random")]
 pub struct Random {}
-
-#[unity::from_offset("App", "Random", ".ctor")]
-pub fn Random_ctor(this: &Random, seed: i32, method_info: OptionalMethod);
 
 #[unity::from_offset("App", "Random", "get_Game")]
 pub fn random_get_Game(method_info: OptionalMethod) -> &'static Random;
@@ -201,6 +210,9 @@ pub fn random_getMinMax(this: &Random, min: i32, max: i32, method_info: Optional
 #[unity::from_offset("App", "Unit", "AddSkillPoint")]
 pub fn unit_add_SP(this: &Unit, value: i32, method_info: OptionalMethod);
 
+#[unity::from_offset("App", "Unit", "set_SkillPoint")]
+pub fn unit_set_SP(this: &Unit, value: i32, method_info: OptionalMethod);
+
 #[unity::from_offset("App","Unit", "set_Hp")]
 pub fn unit_set_Hp(this: &Unit, value: i32, method_info: OptionalMethod);
 
@@ -209,6 +221,9 @@ pub fn unit_set_exp(this: &Unit, exp: i32, method_info: OptionalMethod);
 
 #[unity::from_offset("App", "Unit", "set_InternalLevel")]
 pub fn unit_set_internal_level(this: &Unit, level: i32, method_info: OptionalMethod);
+
+#[unity::from_offset("App", "Unit", "get_WeaponMask")]
+pub fn unit_get_weaponMask(this: &Unit, method_info: OptionalMethod) -> &DisposData_FlagField;
 
 #[unity::from_offset("App","Unit", "get_Hp")]
 pub fn unit_get_Hp(this: &Unit, method_info: OptionalMethod) -> i32;
@@ -230,6 +245,24 @@ pub fn unit_has_private_skill(this: &Unit, sid: &Il2CppString, method_info: Opti
 
 #[skyline::from_offset(0x01a38090)]
 pub fn unit_removePrivateSkill(this: &Unit, sid: &Il2CppString, method_info: OptionalMethod) -> bool;
+
+#[skyline::from_offset(0x01a3aba0)]
+pub fn Unit_LevelDown(this: &Unit, method_info: OptionalMethod);
+
+#[unity::from_offset("App", "Unit", "get_Pid")]
+pub fn unit_get_Pid(this: &Unit, method_info: OptionalMethod) -> &'static Il2CppString;
+
+#[unity::from_offset("App", "Unit", "set_Job")]
+pub fn unit_set_job(this: &UnitCheck, value: &JobData, method_info: OptionalMethod);
+
+#[unity::from_offset("App", "Unit", "set_Job")]
+pub fn unit1_set_job(this: &Unit, value: &JobData, method_info: OptionalMethod);
+
+#[unity::from_offset("App", "PersonData", "get_SubAptitude")]
+pub fn person_get_apt(this: &PersonData, method_info: OptionalMethod) -> &'static mut WeaponMask;
+
+#[unity::from_offset("App", "PersonData", "set_SubAptitude")]
+pub fn person_set_apt(this: &PersonData, value: &WeaponMask, method_info: OptionalMethod);
 
 
 // Dispos
@@ -264,3 +297,7 @@ pub fn disposdata_set_AI_attack_value(this: &DisposData, value: &Il2CppString, m
 
 #[unity::from_offset("App", "DisposData", "get_Pid")]
 pub fn disposdata_get_pid(this: &DisposData, method_info: OptionalMethod) -> &'static Il2CppString;
+
+//Resets convoy
+#[skyline::from_offset(0x022a1180)]
+pub fn transporter_reset(method_info: OptionalMethod);
