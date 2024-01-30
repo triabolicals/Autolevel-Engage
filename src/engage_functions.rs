@@ -70,7 +70,6 @@ pub fn job_get_low(this: &JobData, method_info: OptionalMethod) -> &Il2CppString
 #[skyline::from_offset(0x2053e80)]
 pub fn job_max_level(this: &JobData, method_info: OptionalMethod) -> u8;
 
-
 #[skyline::from_offset(0x02053e90)]
 pub fn job_set_maxLevel(this: &JobData, value: u8, method_info: OptionalMethod);
 
@@ -85,6 +84,12 @@ pub fn job_get_high_job2(this: &JobData, method_info: OptionalMethod) -> &Il2Cpp
 
 #[skyline::from_offset(0x2055fe0)]
 pub fn job_GetLowJobs(this: &JobData, method_info: OptionalMethod) -> &List<JobData>;
+
+#[unity::from_offset("App", "JobData", "get_Limit")]
+pub fn job_get_limit(this: &JobData, method_info: OptionalMethod) -> & mut Capability;
+
+#[unity::from_offset("App", "JobData", "set_Limit")]
+pub fn job_set_limit(this: &JobData, value :&Capability, method_info: OptionalMethod);
 
 //Job Weapons
 #[unity::from_offset("App", "JobData", "get_WeaponAxe")]
@@ -258,12 +263,20 @@ pub fn unit_set_job(this: &UnitCheck, value: &JobData, method_info: OptionalMeth
 #[unity::from_offset("App", "Unit", "set_Job")]
 pub fn unit1_set_job(this: &Unit, value: &JobData, method_info: OptionalMethod);
 
+#[skyline::from_offset(0x01a3c290)]
+pub fn LearnJobSkill_Unit(this: &Unit, method_info: OptionalMethod) -> &SkillData;
+
 #[unity::from_offset("App", "PersonData", "get_SubAptitude")]
+pub fn person_get_sub_apt(this: &PersonData, method_info: OptionalMethod) -> &'static mut WeaponMask;
+
+#[unity::from_offset("App", "PersonData", "get_Aptitude")]
 pub fn person_get_apt(this: &PersonData, method_info: OptionalMethod) -> &'static mut WeaponMask;
 
 #[unity::from_offset("App", "PersonData", "set_SubAptitude")]
-pub fn person_set_apt(this: &PersonData, value: &WeaponMask, method_info: OptionalMethod);
+pub fn person_set_sub_apt(this: &PersonData, value: &WeaponMask, method_info: OptionalMethod);
 
+#[skyline::from_offset(0x02482850)]
+pub fn Skill_Array_remove(this: &SkillArray, sid: &Il2CppString, method_info: OptionalMethod) -> bool;
 
 // Dispos
 #[unity::class("App","DisposData_FlagField")]
@@ -275,7 +288,7 @@ pub struct DisposData_FlagField {
 pub fn disposdata_set_gid(this: &DisposData, value: &Il2CppString, method_info: OptionalMethod);
 
 #[skyline::from_offset(0x01cfa5a0)]
-pub fn disposdata_get_flag(this: &DisposData, method_info: OptionalMethod) -> &DisposData_FlagField;
+pub fn disposdata_get_flag(this: &DisposData, method_info: OptionalMethod) -> &'static mut DisposData_FlagField;
 
 #[skyline::from_offset(0x01cfa820)]
 pub fn disposdata_get_gid(this: &DisposData, method_info: OptionalMethod) -> &'static Il2CppString;
@@ -296,8 +309,105 @@ pub fn disposdata_set_HPstockcount(this: &DisposData, value: u8, method_info: Op
 pub fn disposdata_set_AI_attack_value(this: &DisposData, value: &Il2CppString, method_info: OptionalMethod);
 
 #[unity::from_offset("App", "DisposData", "get_Pid")]
-pub fn disposdata_get_pid(this: &DisposData, method_info: OptionalMethod) -> &'static Il2CppString;
+pub fn disposdata_get_pid(this: &DisposData, method_info: OptionalMethod) -> Option<&'static Il2CppString>;
+#[unity::from_offset("App", "DisposData", "get_Sid")]
+pub fn disposdata_get_sid(this: &DisposData, method_info: OptionalMethod) -> Option<&'static Il2CppString>;
 
 //Resets convoy
 #[skyline::from_offset(0x022a1180)]
 pub fn transporter_reset(method_info: OptionalMethod);
+
+//UnitItem
+#[unity::class("App","UnitItem")]
+pub struct UnitItem {
+    pub m_Index: i32,
+    pub m_Item: &'static ItemData,
+    pub m_endurance: u8,
+    pub m_RefineLevel: u8,
+    pub m_Flags: u32,
+}
+
+#[unity::from_offset("App", "UnitItemList", "get_Count")]
+pub fn UnitItemList_Get_Count(this: &UnitItemList, method_info: OptionalMethod) -> i32;
+
+#[unity::from_offset("App", "UnitItemList", "get_Item")]
+pub fn UnitItemList_Get_Item(this: &UnitItemList, index: i32, method_info: OptionalMethod) ->  Option<&'static mut UnitItem>;
+
+#[skyline::from_offset(0x01fb3ab0)]
+pub fn UnitItemList_Add(this: &UnitItemList, item: &ItemData, method_info: OptionalMethod) -> i32;
+
+#[unity::from_offset("App", "UnitItem", "set_RefineLevel")]
+pub fn UnitItem_Set_RefineLevel(this: &UnitItem, value: i32, method_info: OptionalMethod);
+
+#[unity::from_offset("App", "UnitItem", "IsExistRefineData")]
+pub fn UnitItem_IsExistRefineData(this: &UnitItem, method_info: OptionalMethod) -> bool;
+
+#[unity::from_offset("App", "UnitItem", "SetEngrave")]
+pub fn UnitItem_SetEngrave(this: &UnitItem, data: &GodData, method_info: OptionalMethod) -> bool;
+
+#[skyline::from_offset(0x01fad9e0)]
+pub fn UnitItem_ctor(this: &UnitItem, item: &ItemData, method_info: OptionalMethod);
+
+#[unity::from_offset("App", "UnitItem", "IsWeapon")]
+pub fn UnitItem_IsWeapon(this: &UnitItem, method_info: OptionalMethod) -> bool;
+
+pub fn replace_weapon(this: &mut UnitItem){
+    unsafe {
+        if !UnitItem_IsWeapon(this, None) { return; }
+    }
+    let current_index = this.m_Index;
+    let flags = this.m_Flags;
+    let current_iid = this.m_Item.iid.get_string().unwrap(); 
+    let mut new_iid = this.m_Item.iid.get_string().unwrap();
+    // Iron -> Steel, Steel -> Silver Sword
+    if current_iid == "IID_鉄の剣" { new_iid = "IID_鋼の剣".to_string(); }
+    if current_iid == "IID_鋼の剣" { new_iid = "IID_銀の剣".to_string(); }
+    // Iron -> Steel, Steel -> Silver Blade
+    if current_iid == "IID_鉄の大剣" { new_iid = "IID_鋼の大剣".to_string(); }
+    if current_iid == "IID_鋼の大剣" { new_iid = "IID_銀の大剣".to_string(); }
+
+    //Lance
+    if current_iid == "IID_鉄の槍" { new_iid = "IID_鋼の槍".to_string(); }
+    if current_iid == "IID_鋼の槍" { new_iid = "IID_銀の槍".to_string(); }
+    if current_iid == "IID_手槍" { new_iid = "IID_スレンドスピア".to_string(); }    // Jav -> Spear
+    if current_iid == "IID_鉄の大槍" { new_iid = "IID_鋼の大槍".to_string(); }  //GreatLance
+    if current_iid == "IID_鋼の大槍" { new_iid = "IID_銀の大槍".to_string(); }
+
+    //Axes
+    if current_iid == "IID_鉄の斧" { new_iid = "IID_鋼の斧".to_string(); }
+    if current_iid == "IID_鋼の斧" { new_iid = "IID_銀の斧".to_string(); }
+    if current_iid == "IID_手斧" { new_iid = "IID_トマホーク".to_string(); }    // Jav -> Spear
+    if current_iid == "IID_鉄の大斧" { new_iid = "IID_鋼の大斧".to_string(); }
+    if current_iid == "IID_鋼の大斧" { new_iid = "IID_銀の大斧".to_string(); }
+
+    //Bows
+    if current_iid == "IID_鉄の弓" { new_iid = "IID_鋼の弓".to_string(); }
+    if current_iid == "IID_鋼の弓" { new_iid = "IID_銀の弓".to_string(); }
+
+    //Daggers
+    if current_iid == "IID_鉄のナイフ" { new_iid = "IID_鋼のナイフ".to_string(); }
+    if current_iid == "IID_鋼のナイフ" { new_iid = "IID_銀のナイフ".to_string(); }
+    if current_iid == "IID_カルド" { new_iid = "IID_スティレット".to_string(); }
+    if current_iid == "IID_スティレット" { new_iid = "IID_ペシュカド".to_string(); }
+
+    //Tomes Fire -> Elfire, etc
+    if current_iid == "IID_ファイアー" { new_iid = "IID_エルファイアー".to_string(); }
+    if current_iid == "IID_サンダー" { new_iid = "IID_エルサンダー".to_string(); }
+    if current_iid == "IID_サージ" { new_iid = "IID_エルサージ".to_string(); }
+    if current_iid == "IID_ウィンド" { new_iid = "IID_エルウィンド".to_string(); }
+
+    if current_iid == "IID_エルファイアー" { new_iid = "IID_ボルガノン".to_string(); }
+    if current_iid == "IID_エルサンダー" { new_iid = "IID_トロン".to_string(); }
+    if current_iid == "IID_エルウィンド" { new_iid = "IID_エクスカリバー".to_string(); }
+
+    if current_iid != new_iid {
+        let newItem = ItemData::get(&new_iid);
+        if newItem.is_some() {
+            unsafe {
+                UnitItem_ctor(this, newItem.unwrap(), None);
+                this.m_Index = current_index;
+                this.m_Flags = flags;
+            }
+        }
+    }
+}

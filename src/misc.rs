@@ -14,12 +14,11 @@ pub const AUTOLEVEL_KEY: &str = "G_AUTOLEVEL";
 pub struct AutolevelMod;
 impl ConfigBasicMenuItemSwitchMethods for AutolevelMod {
     fn init_content(this: &mut ConfigBasicMenuItem){
-        GameVariableManager::make_entry_norewind(AUTOLEVEL_KEY, 0);
+        GameVariableManager::make_entry(AUTOLEVEL_KEY, 1);
     }
     extern "C" fn custom_call(this: &mut ConfigBasicMenuItem, _method_info: OptionalMethod) -> BasicMenuResult {
         let toggle =  GameVariableManager::get_bool(AUTOLEVEL_KEY);
         let result = ConfigBasicMenuItem::change_key_value_b(toggle);
-
         if toggle != result {
             GameVariableManager::set_bool(AUTOLEVEL_KEY, result);
             Self::set_command_text(this, None);
@@ -61,27 +60,30 @@ pub fn classChange(this: & mut Unit, job: &JobData, item: &u8, method_info: Opti
             }
             else if job_is_low(job, None) && jobdata_get_max_level(job, None) == 20 {
                 newLevel = 1;
-                newInternal = current_level - 1 + internal_level;
+                newInternal = current_level as i8 - 1 + internal_level;
             }
         }
         else if job_is_low(this.m_Job, None) && jobdata_get_max_level(this.m_Job, None) == 20 {
             if !job_is_low(job, None) {
                 newLevel = 1;
-                newInternal = current_level - 1 + internal_level;
+                newInternal = current_level as i8 - 1 + internal_level;
             }
             else {
                 newLevel = current_level;
                 newInternal = internal_level;
                 if newLevel == 20 && (job_is_low(job, None) && jobdata_get_max_level(job, None) == 20) {
                     newLevel = 1;
-                    newInternal = current_level - 1 + internal_level;
+                    newInternal = current_level as i8 - 1 + internal_level;
                 }
             }
         }
         else if !job_is_low(this.m_Job, None){
-            if job_is_low(job, None) && jobdata_get_max_level(job, None) == 20 {
+            if !job_is_low(job, None) && jobdata_get_max_level(job, None) == 20 {
+                call_original!(this, job, item, method_info);
+            }
+            else if job_is_low(job, None) && jobdata_get_max_level(job, None) == 20 {
                 newLevel = 1;
-                newInternal = current_level - 1 + internal_level;
+                newInternal = current_level as i8 - 1 + internal_level;
             }
             else {
                 newLevel = current_level;
@@ -96,30 +98,7 @@ pub fn classChange(this: & mut Unit, job: &JobData, item: &u8, method_info: Opti
         call_original!(this, job, item, method_info);
         this.m_Level = newLevel;
         this.m_InternalLevel = newInternal;
-    }
-}
-//NG+ bypassing Engrave limit
-#[skyline::hook(offset=0x0295ce30)]
-pub fn create_engrave(this: u64, method_info: OptionalMethod){
-    if GameVariableManager::get_bool("G_NG")|| GameVariableManager::get_bool("G_Cleared_M022") { Patch::in_text(0x0295d5c8).bytes([0x00, 0x00, 0x80, 0xD2]).unwrap(); }
-    else { Patch::in_text(0x0295d5c8).bytes([0xB2, 0xE1, 0xD8, 0x97]).unwrap(); }
-    call_original!(this, method_info);
-}
-
-//removing void curse on enemy :(
-#[skyline::hook(offset = 0x01a0b1b0)]
-pub fn autoGrowCap(this: &mut Unit, level: i32, target_level: i32, method_info: OptionalMethod){
-    call_original!(this, level, target_level, method_info);
-    unsafe {
-        if person_get_AssetForce(this.person, None) != 0 {
-            let total_level = this.m_Level + this.m_InternalLevel as u8;
-            this.m_Level = total_level;
-            this.m_InternalLevel = 0;
-        } 
-        let void_curse: &str = "SID_虚無の呪い";
-        unit_RemoveEquipSkill(this, void_curse.into(), None);
-        unit_removeEquipSkillPool(this, void_curse.into(), None);
-        unit_removePrivateSkill(this, void_curse.into(), None);
+        if JobLearnSkill(job, None) <= newLevel.into() { LearnJobSkill_Unit(this, None); } 
     }
 }
 
@@ -135,11 +114,14 @@ pub fn updateIgnots(){
     unsafe {
         let instance = GameUserData::get_instance();
         let ironCount = 110 + get_iron(instance, None) + 10*get_number_of_chapters_completed();
-        let steelCount = 11 + get_steel(instance, None);
-        let silverCount = 3 + get_silver(instance, None);
-        let mut BondCount = 0;
-        if GameVariableManager::get_bool("G_NG") { BondCount = 2500 + get_PieceOfBond(instance, None) + 100*get_number_of_chapters_completed(); }
-        else { BondCount = get_PieceOfBond(instance, None) + 100*get_number_of_chapters_completed(); }
+        let mut steelCount = 11 + get_steel(instance, None);
+        let mut silverCount = 3 + get_silver(instance, None);
+        let mut BondCount = get_PieceOfBond(instance, None) + 100*get_number_of_chapters_completed();
+        if GameVariableManager::get_bool("G_NG") {
+            BondCount += 2500;
+            steelCount += 10;
+            silverCount += 5;
+        }
         set_PieceOfBond(instance, BondCount, None);
         println!("Bond Fragments: {}", BondCount);
         if GameVariableManager::get_bool("G_拠点_動物小屋通知") {
@@ -151,43 +133,27 @@ pub fn updateIgnots(){
         if GameVariableManager::get_number("G_拠点_裏武器イベント") > 1 {
             let can_get_items = get_IsItemReturn(None);
             if can_get_items == false {
-                set_well_level(3, None);
+                if GameVariableManager::get_bool("G_NG") { set_well_level(5, None) }
+                else { set_well_level(3, None); }
                 set_well_flag(2, None);
                 let seed = 4*(ironCount + steelCount + silverCount + 1750);
                 set_seed(seed, None);
             }
             else if get_well_exchangeLevel(None) < 3 { 
-                if GameVariableManager::get_bool("G_NG") { set_well_level(4, None); }
-                else { set_well_level(2, None); }
+                if GameVariableManager::get_bool("G_NG") { set_well_level(5, None); }
+                else { set_well_level(3, None); }
             }
         }
-        if GameVariableManager::get_bool("G_NG"){ 
-            let typeC = GameVariableManager::get_number("G_NG_OPTION");
-            if typeC == 1 { autolevel_party(10, 4, false); }
-            else if typeC >= 2 { autolevel_party(10, 2, false); }
-        }
-        else if GameVariableManager::get_bool(AUTOLEVEL_KEY) { 
-            autolevel_party(10, 5, false); 
+
+        if GameVariableManager::get_bool(AUTOLEVEL_KEY) { 
+            if GameVariableManager::get_bool("G_NG"){ 
+                let typeC = GameVariableManager::get_number("G_NG_OPTION");
+                if typeC == 1 { autolevel_party(10, 4, false); }
+                else if typeC >= 2 { autolevel_party(10, 3, false); }
+            }
+            else { autolevel_party(10, 4, false);  }
             println!("Bench is autoleveled");
         }
-    }
-}
-
-//Ignore Mauvier for Reverse Recruitment
-#[skyline::hook(offset=0x01cd5f30)]
-pub fn ignoreJagens(this: u64, unit: &Unit, method_info: OptionalMethod){
-    unsafe {
-        let pid = unit_get_pid(unit, None);
-        if pid.get_string().unwrap() == "PID_モーヴ" && is_reverse_recruitment() { return; }
-        else { call_original!(this, unit, method_info); }
-    }
-}
-#[skyline::hook(offset=0x01cd6020)]
-pub fn ignoreMauvierLevel(this: u64, unit: &Unit, method_info: OptionalMethod){
-    unsafe {
-        let pid = unit_get_pid(unit, None);
-        if pid.get_string().unwrap() == "PID_モーヴ" && is_reverse_recruitment() { return;  }
-        else { call_original!(this, unit, method_info); }
     }
 }
 // Keep Job Skill at the same level when switching to level 99 cap
@@ -225,7 +191,20 @@ pub fn get_number_of_chapters_completed() -> i32 {
     }
     number
 }
-
+pub fn get_number_main_chapters_completed() -> i32 {
+    let mut number = 0;
+    let chapters = ChapterData::get_list_mut().expect(":D");
+    unsafe {
+        let length = chapters.len();
+        let game_variable = GameUserData::get_variable();
+        for x in 0..length {
+            if str_start_with(chapters[x].cid, "CID_M") || str_start_with(chapters[x].cid, "CID_S"){
+                if get_bool(game_variable, GetClearedFlagName(chapters[x], None), None) { number = number + 1; }
+            }
+        }
+    }
+    number
+}
 pub fn is_recruited(pid: &Il2CppString) -> bool {
     unsafe {
         if is_null_empty(pid, None) { return false; }
@@ -256,12 +235,29 @@ pub fn join_unit_check(arg: u64, index: i32, method_info: OptionalMethod) -> Opt
     if d_type == 0 { call_original!(arg, index, method_info) }
     else if d_type == 4 {
         let pid = try_get_string(arg, index, "nothing".into(), method_info);
-        if !is_recruited(pid) { call_original!(arg, index, method_info) }
+        if pid.get_string().unwrap() == "PID_リュール" {
+            call_original!(arg, index, method_info)
+        }
+        else if !is_recruited(pid) { call_original!(arg, index, method_info) }
         else { return None; }
     }
-    else {
-        call_original!(arg, index, method_info)
+    else { call_original!(arg, index, method_info) }
+}
+
+}
+#[skyline::from_offset(0x025c9240)]
+pub fn Mess_Get(label: &Il2CppString, method_info: OptionalMethod) -> &'static Il2CppString;
+
+pub fn get_str(label: &Il2CppString) -> String {
+    unsafe {
+        Mess_Get(label, None).get_string().unwrap()
     }
 }
 
+#[unity::hook("App","UnitUtil", "SummonCreate")]
+pub fn SummonCreate(owner: &Unit, rank: i32, person: &PersonData, method_info: OptionalMethod) -> &'static Unit {
+    for i in 1..32*32 {
+        call_original!(owner, rank, person, method_info);
+    } 
+    return call_original!(owner, rank, person, method_info);
 }
