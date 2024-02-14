@@ -32,8 +32,10 @@ extern "C" fn load_autolevels(event: &Event<SystemEvent>) {
 #[skyline::main(name = "Autolevel")]
 pub fn main() {
     ng::ng_install();
+    ng::rsh_install();
     misc::auto_install();
-    skyline::install_hooks!( ng::set_sid, ng::create_from_dispos, ng::autoGrowCap, misc::join_unit_check, misc::is_recollection, ng::gmap_load, misc::JobLearnSkill);
+
+    skyline::install_hooks!( misc::set_sid, ng::create_from_dispos, ng::autoGrowCap, misc::join_unit_check, ng::gmap_load);
     skyline::install_hooks!( misc::get_ignots, misc::classChange);
     skyline::install_hooks!( dispos::mapdispos_load);
     println!("Autolevel plugin installed");
@@ -53,7 +55,17 @@ pub fn main() {
 
     //Patch::in_text(0x01a0ad00).nop(); //bytes(&[0x00, 0x00, 0x80, 0x52]);
     Patch::in_text(0x01a3a854).bytes(&[0x1F,0x91,0x01,0x71]).unwrap();
+    Patch::in_text(0x01be1388).bytes(&[0x61, 0x00, 0x80, 0x52]);
+    // joblearnskill special class to level 25, check if max job is level 100 
+    Patch::in_text(0x02056ca4).bytes(&[0x1F,0x8D, 0x01, 0x71]).unwrap();
+  
+    // Special Class Loop back at 100 
+    Patch::in_text(0x019c6a64).bytes(&[0x80,0x0C, 0x80, 0x52]);
+    Patch::in_text(0x019c6ad0).bytes(&[0x1F, 0x8D, 0x01, 0x71]);
 
+    // Advanced Class Loop back at 99
+    Patch::in_text(0x019c69bc).bytes(&[0x60, 0x0C, 0x80, 0x52]);
+    Patch::in_text(0x019c6a28).bytes(&[0x1F, 0x89, 0x01, 0x71]);
     cobapi::register_system_event_handler(load_autolevels);
     std::panic::set_hook(Box::new(|info| {
         let location = info.location().unwrap();

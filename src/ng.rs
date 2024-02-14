@@ -12,10 +12,13 @@ use unity::system::List;
 use unity::il2cpp::object::Array;
 pub static mut AVERAGE_CAP: i32 = 0;
 pub const NG_KEY2: &str = "G_NG_OPTION";
+pub const RSH_KEY: &str = "G_RSH";
 
 pub struct NGMod;
 impl ConfigBasicMenuItemSwitchMethods for NGMod {
-    fn init_content(this: &mut ConfigBasicMenuItem){ GameVariableManager::make_entry(NG_KEY2, 0); }
+    fn init_content(this: &mut ConfigBasicMenuItem){ 
+        GameVariableManager::make_entry(NG_KEY2, 0);
+     }
     extern "C" fn custom_call(this: &mut ConfigBasicMenuItem, _method_info: OptionalMethod) -> BasicMenuResult {
         let toggle =  GameVariableManager::get_number(NG_KEY2);
         let result = ConfigBasicMenuItem::change_key_value_i(toggle, 0, 4, 1);
@@ -29,32 +32,71 @@ impl ConfigBasicMenuItemSwitchMethods for NGMod {
     }
     extern "C" fn set_help_text(this: &mut ConfigBasicMenuItem, _method_info: OptionalMethod){
         let typeC =  GameVariableManager::get_number(NG_KEY2);
-        if typeC == 0 {this.help_text = format!("No changes are made to units and inventory.").into(); }
-        else if typeC == 1 {this.help_text = format!("Units will be reset to level 5 in their base class.").into(); }
-        else if typeC == 2 {this.help_text = format!("Convoy, unit's inventory, and levels will reset.").into(); }
-        else if typeC == 3 {this.help_text = format!("Convoy, unit's inventory, levels, bonds, and skills will reset.").into(); }
-        else if typeC == 4 {this.help_text = format!("Game will not reset after completing Chapter 26").into(); }
+        if typeC == 0 {this.help_text = "No changes are made to units and inventory.".into(); }
+        else if typeC == 1 {this.help_text = "Units will be reset to level 5 in their base class.".into(); }
+        else if typeC == 2 {this.help_text = "Convoy, unit's inventory, and levels will reset.".into(); }
+        else if typeC == 3 {this.help_text = "Convoy, unit's inventory, levels, bonds, and skills will reset.".into(); }
+        else if typeC == 4 {this.help_text = "Game will not reset after completing Chapter 26".into(); }
     }
     extern "C" fn set_command_text(this: &mut ConfigBasicMenuItem, _method_info: OptionalMethod){
         let typeC =  GameVariableManager::get_number(NG_KEY2);
-        if typeC == 0 {this.command_text = format!("No Reset").into(); }
-        else if typeC == 1 {this.command_text = format!("Level Only").into(); }
-        else if typeC == 2 {this.command_text = format!("Level and Inventory").into(); }
-        else if typeC == 3 {this.command_text = format!("Full Reset").into(); }
-        else if typeC == 4 {this.command_text = format!("Off").into(); }
+        if typeC == 0 {this.command_text = "No Reset".into(); }
+        else if typeC == 1 {this.command_text = "Level Only".into(); }
+        else if typeC == 2 {this.command_text = "Level and Inventory".into(); }
+        else if typeC == 3 {this.command_text = "Full Reset".into(); }
+        else if typeC == 4 {this.command_text = Off_str(); }
     }
 }
-extern "C" fn ng() -> &'static mut ConfigBasicMenuItem { ConfigBasicMenuItem::new_switch::<NGMod>("New Game+ Setting") }
+extern "C" fn ng() -> &'static mut ConfigBasicMenuItem {
+    ConfigBasicMenuItem::new_switch::<NGMod>("New Game+ Setting") 
+}
 pub fn ng_install(){ cobapi::install_game_setting(ng); }
+
+pub struct RSMod;
+impl ConfigBasicMenuItemSwitchMethods for RSMod {
+    fn init_content(this: &mut ConfigBasicMenuItem){ 
+       GameVariableManager::make_entry(RSH_KEY, 0);
+     }
+    extern "C" fn custom_call(this: &mut ConfigBasicMenuItem, _method_info: OptionalMethod) -> BasicMenuResult {
+        let toggle = GameVariableManager::get_number(RSH_KEY);
+        let result = ConfigBasicMenuItem::change_key_value_i(toggle, 0, 1, 1);
+        if toggle != result {
+            GameVariableManager::set_number(RSH_KEY, result);
+            Self::set_command_text(this, None);
+            Self::set_help_text(this, None);
+            this.update_text();
+            return BasicMenuResult::se_cursor();
+        } else {return BasicMenuResult::new(); }
+    }
+    extern "C" fn set_help_text(this: &mut ConfigBasicMenuItem, _method_info: OptionalMethod){
+        if GameVariableManager::get_number(RSH_KEY) == 1  {
+            this.help_text = "All enemies will have a revivial stone or a dark emblem.".into();
+        }
+        else {
+            this.help_text = "Default setting for enemies.".into();
+       }
+    }
+    extern "C" fn set_command_text(this: &mut ConfigBasicMenuItem, _method_info: OptionalMethod){
+        if GameVariableManager::get_number(RSH_KEY) == 1 {
+            this.command_text = On_str().into();
+        }
+        else {
+            this.command_text =  Off_str();
+        }
+    }
+}
+extern "C" fn rsh() -> &'static mut ConfigBasicMenuItem {
+     ConfigBasicMenuItem::new_switch::<RSMod>("Revival Stone Hell") 
+}
+pub fn rsh_install(){ cobapi::install_game_setting(rsh); }
+
 
 pub fn find_personIndex(pid: &Il2CppString) -> usize {
     let triabolical = PersonData::get_list_mut().expect("triabolical is 'None'");
-    let t_list = &triabolical.list.items;
+    let t_list = &triabolical.list;
     unsafe {
         for x in 0..760 {
-            if string_contains(t_list[x].pid, pid, None) {
-                return x;
-            }
+            if string_contains(t_list[x].pid, pid, None) { return x;  }
         }
     }
     return 0;
@@ -74,6 +116,29 @@ pub fn unit_cap_total(this: &Unit, with_HP: bool) -> i32 {
     }
     total
 }
+// this version checks for negative stats first
+pub fn unit_cap_total_mut(this: &mut Unit, with_HP: bool) -> i32 {
+    let mut total = 0;
+    unsafe {
+        //checking for negatives stat and corrects it
+        for x in 0..11 {
+            if unit_get_capability(this, x, false, None) < 0 {
+                this.m_BaseCapability.capability.m_items[x as usize] = 127;
+                if x >= 8 { this.m_BaseCapability.capability.m_items[x as usize] = 99; }
+            }
+        }
+        for x in 1..8 { total = total + unit_get_capability(this, x, false, None); }
+        if with_HP {
+            total += unit_get_capability(this, 0, false, None);
+            total += 2*unit_get_capability(this, 8, false, None);
+            total += 2*unit_get_capability(this, 9, false, None);
+            if unit_get_capability(this, 10, false, None) < 4 { total += unit_get_capability(this, 6, false, None); }
+            else { total += (unit_get_capability(this, 10, false, None) - 4) * 10; }
+        }
+    }
+    total
+}
+
 #[skyline::from_offset(0x0250e450)]
 pub fn set_gold(this: &GameUserData, value : i32, method_info: OptionalMethod);
 
@@ -375,6 +440,7 @@ pub fn resetGmap(){
         reset_units(5);
     }
 }
+//Calculating top average rating 
 pub fn calculate_player_cap() -> i32 {
     let mut max_cap: [i32; 10] = [0; 10];
     let mut unit_name: [&Il2CppString; 10] = [" N/A".into(); 10];
@@ -417,41 +483,52 @@ pub fn calculate_player_cap() -> i32 {
     GameVariableManager::set_number("G_NG_CAP".into(), average);
     average
 }
-// Hooking to refresh gmap for NG+
+// Hooking to refresh gmap for NG+, update recommended levels
 #[skyline::hook(offset=0x02b3a3f0)]
 pub fn gmap_load(this: &u64, method_info: OptionalMethod) {
     update_recommendedLevel();
     call_original!(this, method_info);
-    if GameVariableManager::get_bool("G_NG")|| GameVariableManager::get_bool("G_Cleared_M022") { Patch::in_text(0x0295d5c8).bytes([0x00, 0x00, 0x80, 0xD2]).unwrap(); }
-    else { Patch::in_text(0x0295d5c8).bytes([0xB2, 0xE1, 0xD8, 0x97]).unwrap(); }
+    //Engraving bypass and recall bypass
+    if GameVariableManager::get_bool("G_NG") { 
+        Patch::in_text(0x0295d5c8).bytes(&[0x00, 0x00, 0x80, 0xD2]).unwrap();
+        Patch::in_text(0x02b415f8).bytes(&[0x01, 0x01, 0x80, 0x52]);
+        Patch::in_text(0x01be1388).bytes(&[0x81, 0x00, 0x80, 0x52]);    // 4 stats
+    }
+    else { 
+        Patch::in_text(0x0295d5c8).bytes(&[0xB2, 0xE1, 0xD8, 0x97]).unwrap(); 
+        Patch::in_text(0x02b415f8).bytes(&[0x01, 0x04, 0x80, 0x52]);
+        Patch::in_text(0x01be1388).bytes(&[0x61, 0x00, 0x80, 0x52]);    // 3 stats
+    }
     resetGmap();
 }
-pub fn remove_skill_from_unit(unit: &Unit, sid: &Il2CppString){
-    let mut removed: bool = false;
-   
+
+
+pub fn promote_unit(this: &Unit, level: i32){
     unsafe {
-        removed = Skill_Array_remove(unit.m_EquipSkill, sid, None)| removed;
-        removed = Skill_Array_remove(unit.m_PrivateSkill, sid, None)| removed;
-        removed = Skill_Array_remove(unit.m_ReceiveSkill, sid, None)| removed;
-        removed = Skill_Array_remove(unit.m_SupportedSkill, sid, None)| removed;
-    }
-    if removed {
-       println!("Skill {} was removed from {}", sid.get_string().unwrap(), unit.person.name.get_string().unwrap());
+        let jobmaxLevel = this.m_Job.MaxLevel as i32;
+        if jobmaxLevel < level {
+            if job_is_low(this.m_Job, None) {
+                let high_job = job_get_high_job1(this.m_Job, None);
+                if !is_null_empty(high_job, None){
+                    let hjob = JobData::get(&high_job.get_string().unwrap());
+                    if hjob.is_some(){ 
+                        this.class_change(hjob.unwrap());
+                        println!("{} {} was promoted to {}", get_str(this.m_Job.name),  get_str(this.person.name), get_str(high_job));
+                        unit_set_level(this, level-jobmaxLevel, None);
+                        unit_update_weapon_mask(this, None);
+                        this.set_internal_level(jobmaxLevel);
+                    }
+                }  
+            }
+        }
     }
 }
-pub fn valid_job(job: &JobData) -> bool {
-    unsafe {
-    if job_is_low(job, None) { return false; }
-        let jid = job.jid.get_string().unwrap();
-        if jid == "JID_パラディン" { return false; }
-        if jid == "JID_ジェネラル" { return false; } 
-        if jid == "JID_ドラゴンナイト" { return false; }
-    }
-    return true;
-}
+
+//Adjusting stats
 #[skyline::hook(offset = 0x01a0b1b0)]
 pub fn autoGrowCap(this: &mut Unit, level: i32, targetLevel: i32, method_info: OptionalMethod){
     unsafe {
+        //prevent the game from crashing at startup
         if !GROWTH_SET || this.person.name.get_string().unwrap() == "MPID_Lueur" { 
             call_original!(this, level, targetLevel, method_info);
             return; 
@@ -466,6 +543,7 @@ pub fn autoGrowCap(this: &mut Unit, level: i32, targetLevel: i32, method_info: O
             }
             call_original!(this, level, new_target, method_info);
             let jobmaxLevel = this.m_Job.MaxLevel as i32;
+            //Promote recruited character 
             if jobmaxLevel < targetLevel {
                 if job_is_low(this.m_Job, None) {
                     let high_job = job_get_high_job1(this.m_Job, None);
@@ -475,7 +553,7 @@ pub fn autoGrowCap(this: &mut Unit, level: i32, targetLevel: i32, method_info: O
                             let old_level = this.m_Job.MaxLevel as i32;
                             this.class_change(hjob.unwrap()); 
                             call_original!(this, level, new_target+1, method_info);
-                            set_weapon_mask_from_person(this, None);
+                            unit_update_weapon_mask(this, None);
                             let excessLevel:i32 = targetLevel - old_level;
                             unit_set_level(this, excessLevel.into(), None);
                         }
@@ -487,9 +565,10 @@ pub fn autoGrowCap(this: &mut Unit, level: i32, targetLevel: i32, method_info: O
             let mut count = 0;
             let countLimit = new_target / 5;
             let unit_level = this.m_Level;
+            //Adjust Stats 
             while enemy_cap < player_cap && count < countLimit {
-                Unit_LevelUP(this, 4, None);
-                enemy_cap = unit_cap_total(this, true);
+                Unit_LevelUP(this, 3, None);
+                enemy_cap = unit_cap_total_mut(this, true);
                 this.m_Level = unit_level;
                 count += 1;
             }
@@ -498,69 +577,34 @@ pub fn autoGrowCap(this: &mut Unit, level: i32, targetLevel: i32, method_info: O
         }
         let diff = GameUserData::get_difficulty(false);
         let mut new_enemy_Level = GetAverageLevel(2, 14 - 2*diff, None) - 4 + diff*2;
-        // FX
-        if player_cap < 0 {
-            call_original!(this, level, targetLevel+2*diff, method_info);
-            return;
-        }
-        //Skrimish
-        if player_cap == 0 {
-            call_original!(this, level, targetLevel, method_info);
-            return;
-        }
-        let skills = get_CommonSkill(this.person, None);
-        let removed = Skill_Array_remove(skills, "SID_虚無の呪い".into(), None);
-        set_CommonSkill(this.person, skills, None);
-        // Divine Paralogues and before they are unlocked
+    
         if player_cap < 120 || !GameVariableManager::get_bool("G_Cleared_M006".into()) { 
-            if targetLevel < new_enemy_Level {
-                
+            // FX and FX Skrimishes
+            if player_cap < 0 { call_original!(this, level, targetLevel+2*diff, method_info); }
+            // Skrimishes
+            else if player_cap == 0 { call_original!(this, level, targetLevel, method_info); }
+            // Divine Paralogues and Firene Arc
+            else if targetLevel < new_enemy_Level {
                 let new_level = new_enemy_Level - targetLevel + level;
                 call_original!(this, new_level, new_enemy_Level, method_info);
-                let jobmaxLevel = this.m_Job.MaxLevel as i32;
-                let unit_internal = this.m_InternalLevel;
-                if jobmaxLevel < new_level {
-                    if job_is_low(this.m_Job, None) {
-                        let high_job = job_get_high_job1(this.m_Job, None);
-                        if !is_null_empty(high_job, None){
-                            let hjob = JobData::get(&high_job.get_string().unwrap());
-                            if hjob.is_some(){ 
-                                this.class_change(hjob.unwrap());
-                                unit_set_level(this, new_enemy_Level-jobmaxLevel, None);
-                                this.set_internal_level(jobmaxLevel);
-                            }
-                        }
-                    }
-                }
+                promote_unit(this, new_level);
             }
             else { call_original!(this, level, targetLevel, method_info); }
+            unit_cap_total_mut(this, true);
             return; 
         }
+
         if is_boss(this.person){ new_enemy_Level += 4; }
         else if !Capability_is_zero(get_Grow(this.person, None), None) { new_enemy_Level += 2;} 
 
         if targetLevel < new_enemy_Level  { 
             let new_level = new_enemy_Level - targetLevel + level;
             call_original!(this, new_level, new_enemy_Level, method_info); 
-            let jobmaxLevel = this.m_Job.MaxLevel as i32;
-            let unit_internal = this.m_InternalLevel;
-            let displayed_level = new_enemy_Level - targetLevel + level;
-            if jobmaxLevel < displayed_level {
-                if job_is_low(this.m_Job, None) {
-                    let high_job = job_get_high_job1(this.m_Job, None);
-                    if !is_null_empty(high_job, None){
-                        let hjob = JobData::get(&high_job.get_string().unwrap());
-                        if hjob.is_some(){ 
-                            this.class_change(hjob.unwrap());
-                            set_weapon_mask_from_person(this, None);
-                            unit_set_level(this, new_enemy_Level-jobmaxLevel, None);
-                            this.set_internal_level(jobmaxLevel);
-                         }
-                    }
-                }
-            }
+            promote_unit(this, new_level);
+            unit_cap_total_mut(this, true);
         }
         else { call_original!(this, level, targetLevel, method_info);  }
+        //Adjusting Enemy Rating 
         if person_get_AssetForce(this.person, None) == 1 {
             let starting_cap = unit_cap_total(this, true);
             let mut enemy_cap = unit_cap_total(this, true);
@@ -568,20 +612,22 @@ pub fn autoGrowCap(this: &mut Unit, level: i32, targetLevel: i32, method_info: O
             let unit_level = this.m_Level;
             let enemy_floor_cap = player_cap + diff*( get_number_main_chapters_completed() - 10 );
             while enemy_cap < enemy_floor_cap && count < 20 {
-                Unit_LevelUP(this, 5, None);
-                enemy_cap = unit_cap_total(this, true);
+                Unit_LevelUP(this, 4, None);
+                enemy_cap = unit_cap_total_mut(this, true);
                 this.m_Level = unit_level;
                 count += 1;
             }
             if this.person.name.get_string().unwrap() == "MPID_SombreDragon" { return; }
             let mut down_count = 0;
-            while enemy_cap > player_cap+75*diff+25 && down_count < 20 {
+            while enemy_cap > player_cap+75*diff+25 && down_count < 50 {
                 this.m_Level = unit_level+1;
                 Unit_LevelDown(this, None);
-                enemy_cap = unit_cap_total(this, true);
+                enemy_cap = unit_cap_total_mut(this, true);
                 down_count += 1;
             }
-            if starting_cap != enemy_cap { println!("Enemy {} {} gain {} stat points to {}", get_str(this.m_Job.name), get_str(this.person.name), enemy_cap-starting_cap, enemy_cap); }
+            if starting_cap != enemy_cap { 
+                println!("Enemy {} {} gain {} stat points to {} ( {} Up/ {} Down )", get_str(this.m_Job.name), get_str(this.person.name), enemy_cap-starting_cap, enemy_cap, count, down_count);
+             }
             unit_set_Hp(this, unit_get_capability(this, 0, true, None), None);
             let jobmaxLevel = this.m_Job.MaxLevel;
             let unit_internal = this.m_InternalLevel;
@@ -593,96 +639,55 @@ pub fn autoGrowCap(this: &mut Unit, level: i32, targetLevel: i32, method_info: O
         }
     }
 }
+//Hook to change/update weapons, adding engraves and suchs
 #[skyline::hook(offset = 0x01a08de0)]
 pub fn create_from_dispos(this: &mut Unit, data: &DisposData, method_info: OptionalMethod){
     call_original!(this, data, method_info);
-    remove_skill_from_unit(this, "SID_虚無の呪い".into());
     unsafe {
         if GameVariableManager::get_number("G_NG_CAP".into()) < 120 { return; }
+        let is_NG_p = GameVariableManager::get_bool("G_NG");
         let personIndex: usize  = find_personIndex(this.person.pid);
+        let mut refine_level = 0;   // Forging Level
+        let mut level_difference: i32 = 0;
+        let list_count = UnitItemList_Get_Count(this.m_ItemList, None);
         if personIndex != 0 {
-            if autolevel::CLASS_LEVEL[personIndex] < 20 {
-                if !job_is_low(this.m_Job, None){
-                    let list_count = UnitItemList_Get_Count(this.m_ItemList, None);
+            if autolevel::CLASS_LEVEL[personIndex] < 20  {
+                // promoted so change out weapons
+                if !job_is_low(this.m_Job, None) && this.m_Job.MaxLevel == 20 {
+                    level_difference = this.m_Level as i32 - 20;
                     for x in 0..list_count {
                         let mut item = UnitItemList_Get_Item(this.m_ItemList, x, None);
                         if item.is_some() {
                             replace_weapon(item.as_mut().unwrap());
                             let weapon = &item.unwrap();
-                            if GameVariableManager::get_bool("G_NG") && UnitItem_IsWeapon(weapon, None) {
-                                let rng = random_getMinMax(random_get_Game(None), 0, 24, None) as usize;
-                                if rng < 12 {
-                                    let godData = &GodData::get_list_mut().expect("triabolical is 'None'").list.items[rng];
-                                    UnitItem_SetEngrave(weapon, godData, None);
-                                }
-                            }
                         }
                     }
                 }
-                else if job_is_low(this.m_Job, None) && this.m_Job.MaxLevel == 20 {
-                    let difference = this.m_Level as i32 - INITIAL_LEVEL[personIndex] as i32;
-                    let mut refineLevel = difference / 4; 
-                    if refineLevel < 0 { refineLevel = 0; }
-                    if refineLevel < 4 { refineLevel = 5; }
-                    let list_count = UnitItemList_Get_Count(this.m_ItemList, None);
-                    for x in 0..list_count {
-                        let mut item = UnitItemList_Get_Item(this.m_ItemList, x, None);
-                        if item.is_some() {
-                            let weapon = &item.unwrap();
-                            if UnitItem_IsExistRefineData(weapon, None) {
-                                UnitItem_Set_RefineLevel(weapon, refineLevel, None);
-                            }
-                            if GameVariableManager::get_bool("G_NG") && UnitItem_IsWeapon(weapon, None) {
-                                let rng = random_getMinMax(random_get_Game(None), 0, 24, None) as usize;
-                                if rng < 12 {
-                                    let godData = &GodData::get_list_mut().expect("triabolical is 'None'").list.items[rng];
-                                    UnitItem_SetEngrave(weapon, godData, None);
-                                }
-                            }
-                        }
-                    }
-                }
+                else { level_difference = this.m_Level as i32 - INITIAL_LEVEL[personIndex] as i32; }
+                refine_level = level_difference / 4; 
             }
-            else if GameVariableManager::get_bool("G_NG") {
-                let list_count = UnitItemList_Get_Count(this.m_ItemList, None);
+            else { 
+                level_difference = this.m_Level as i32 - INITIAL_LEVEL[personIndex] as i32;
+                refine_level = level_difference / 6; 
+            }
+                
+                // Forging and adding engraves (if NG+)
+                if refine_level < 0 { refine_level = 0; }
+                if refine_level > 4 { refine_level = 5; }
                 for x in 0..list_count {
                     let mut item = UnitItemList_Get_Item(this.m_ItemList, x, None);
                     if item.is_some() {
                         let weapon = &item.unwrap();
-                         if UnitItem_IsWeapon(weapon, None) {
+                        if UnitItem_IsExistRefineData(weapon, None) { UnitItem_Set_RefineLevel(weapon, refine_level, None);}
+                        if is_NG_p && UnitItem_IsWeapon(weapon, None) {
                             let rng = random_getMinMax(random_get_Game(None), 0, 24, None) as usize;
                             if rng < 12 {
                                 let godData = &GodData::get_list_mut().expect("triabolical is 'None'").list.items[rng];
                                 UnitItem_SetEngrave(weapon, godData, None);
-                            }
-                        }
+                       }
                     }
                 }
             }
         }
     }
-}
-/* 
-#[unity::hook("App","Unit","UpdateStateImpl")]
-pub fn UpdateState(this: &Unit, isAutoEquipped: bool, item: &UnitItem, method_info: OptionalMethod){
-    unsafe {
-    let skills = get_CommonSkill(this.person, None);
-    let removed = Skill_Array_remove(skills, "SID_虚無の呪い".into(), None);
-    set_CommonSkill(this.person, skills, None);
-    call_original!(this, isAutoEquipped, item, method_info);
-    remove_skill_from_unit(this, "SID_虚無の呪い".into());
-    Skill_Array_remove(this.m_MaskSkill, "SID_虚無の呪い".into(), None);
-    }
-}
-*/
-#[unity::hook("App", "PersonData", "set_CommonSids")]
-pub fn set_sid(this: &PersonData, value: &mut Array<&Il2CppString>, method_info: OptionalMethod ){
-    println!("Array Length: {}", value.len());
-    for i in 0..value.len() {
-        if value[i].get_string().unwrap() ==  "SID_虚無の呪い" {
-            value[i] = "SID_相手の命中１００".into();
-        }
-    }
-    call_original!(this, value, method_info);
-
 }

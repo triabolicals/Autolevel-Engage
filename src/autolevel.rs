@@ -8,8 +8,9 @@ use crate::misc::Mess_Get;
 use skyline::patching::Patch;
 
 pub static mut INITIAL_LEVEL : [u8; 1000] = [0; 1000];
-pub static mut INITIAL_REC_LEVEL : [u8; 100] = [0; 100];
+pub static mut INITIAL_REC_LEVEL : [u8; 200] = [0; 200];
 pub static mut CLASS_LEVEL : [u8; 1000] = [0; 1000]; // 1 - 10 - unpromoted, 20 - promoted, - 3 special
+pub static mut CLASS_TYPE: [u8; 512] = [0; 512];
 pub static mut LEVEL_SET: i32 = 0;
 pub static mut FX_start: usize = 0;
 pub static mut FX_end: usize = 0;
@@ -76,8 +77,24 @@ pub fn autolevel_party(average_num: i32, diff_from_average: i32, limit :bool ){
         }
     }
 }
+pub fn autolevel_party_to_level(level: i32){
+    // Autolevels force 3 to level 
+    unsafe {
+        let benchForce = Force_Get(3, None);
+        let mut force_iter = Force::iter(benchForce);
+        while let Some(unit) = force_iter.next() {
+            let total_level: i32 = (unit.m_Level as i8 + unit.m_InternalLevel) as i32;
+            let number_of_levelups = level - total_level;
+            if number_of_levelups > 0 {
+                multipleLevelUps(unit, number_of_levelups);
+            }
+        }
+    }
+}
+
 #[skyline::from_offset(0x01a36560)]
 pub fn Add_to_Equip_Skill_Pool(this: &Unit, skill: &SkillData, method_info: OptionalMethod);
+
 #[unity::from_offset("App","Unit", "SetWeaponMaskFromParson")]
 pub fn set_weapon_mask_from_person(this: &Unit, method_info: OptionalMethod);
 
@@ -107,13 +124,13 @@ pub fn multipleLevelUps(unit: &Unit, numberOfLevels: i32){
                     let hjob = JobData::get(&high_job.get_string().unwrap());
                     if hjob.is_some(){ 
                         unit.class_change(hjob.unwrap());
-                        set_weapon_mask_from_person(unit, None);
+                        unit_update_weapon_mask(unit, None);
                         return;
                     }
                 }
             }
-            let excessLevel = unit.m_Level as i8 - jobmaxLevel as i8;
-            unit.set_internal_level((unit_internal + excessLevel).into());
+            let excess_Level = unit.m_Level as i8 - jobmaxLevel as i8;
+            unit.set_internal_level((unit_internal + excess_Level).into());
             unit_set_level(unit, jobmaxLevel.into(), None);
         }
         LearnJobSkill_Unit(unit, None);
@@ -197,12 +214,12 @@ pub fn increaseCaps(this: &PersonData, amount : i8, is_enemy: bool){
         if NO_CAPS { return; }
         let caps = get_limit(this, None);
         let half = (amount/2 ) as i8;
-        if amount == 40 { CapabilitySbyte_add(caps, 0, 40, None); }
-        else if amount == -40 {  CapabilitySbyte_add(caps, 0, -40, None); }
+        if amount == 30 { CapabilitySbyte_add(caps, 0, 30, None); }
+        else if amount == -30 {  CapabilitySbyte_add(caps, 0, -30, None); }
         else if is_enemy { CapabilitySbyte_add(caps, 0, amount, None); }
         if is_enemy {
             CapabilitySbyte_add(caps, 1, amount, None);
-            if amount == 40 || amount == -40 {
+            if amount == 30 || amount == -30 {
                 CapabilitySbyte_add(caps, 2, amount, None);
                 CapabilitySbyte_add(caps, 3, amount, None)
             }
@@ -238,37 +255,43 @@ pub fn get_initial_levels() {
         let triabolical = PersonData::get_list_mut().expect("triabolical is 'None'");
         let t_list = &triabolical.list.items;
         let triabolical2 = JobData::get_list_mut().expect("triabolical2 is 'None'");
-        let t_list2 = &triabolical2.list.items;
         let job_count: usize = JobData::get_count() as usize; 
         let person_count: usize = PersonData::get_count() as usize; 
         if !GROWTH_SET {
+            // Fix Stat Caps
             for x in 0..person_count {
                 let caps = get_limit(t_list[x], None);
                 for i in 0..10 {
                     if NO_CAPS { caps.array.m_item[i] = 0; }
-                    else if  caps.array.m_item[i] > 5 { caps.array.m_item[i] = 5;}
-                }
-                let skills = get_CommonSkill(t_list[x], None);
-                let removed = Skill_Array_remove(skills, "SID_虚無の呪い".into(), None);
-                if removed {
-                    println!("Skill was removed from {} - {}", x, Mess_Get(t_list[x].name, None).get_string().unwrap());
-                }
+                    else if caps.array.m_item[i] > 5 { caps.array.m_item[i] = 5;}
+                } 
+                //set_attrs(t_list[x], 524287, None);
                 set_limit(t_list[x], caps, None);
             }
             if !NO_CAPS {
-            for x in 0..job_count {
-                let job = &t_list2[x];
-                if job_is_low(job, None) && job_max_level(job, None) == 40 { job_set_maxLevel(job, 99, None); }
-                else if !job_is_low(job, None) && job_max_level(job, None) == 20 { job_set_maxLevel(job, 99, None); }
-                let cap = job_get_limit(job, None);
-                for i in 0..10 {
-                    if cap.array.m_item[i] > 50 && i != 0 { cap.array.m_item[i] = 50; }
-                    if i != 4 || i != 8 { Capability_add(cap, i.try_into().unwrap(), 20, None); }
+                // Fix class caps and adjust class max level to 99 for special and advanced
+                for x in 0..job_count {
+                    let job = &triabolical2[x];
+                    if job_is_low(job, None) && job_max_level(job, None) == 40 {
+                        CLASS_TYPE[x] = 2;
+                        job_set_maxLevel(job, 100, None);
+                    }
+                    else if !job_is_low(job, None) && job_max_level(job, None) == 20 { 
+                        CLASS_TYPE[x] = 1;
+                        job_set_maxLevel(job, 99, None); 
+                    }
+                    else { CLASS_TYPE[x] = 0; }
+                    let cap = job_get_limit(job, None);
+                    if cap.array.m_item[0] > 100 { cap.array.m_item[0] = 100; }
+                    Capability_add(cap, 0, 10, None);
+                    for i in 1..10 {
+                        if cap.array.m_item[i] > 60 { cap.array.m_item[i] = 60; }
+                        if i != 4 && i != 8 { Capability_add(cap, i.try_into().unwrap(), 20, None); }
+                    }
+                    job_set_limit(job, cap, None);
                 }
-                job_set_limit(job, cap, None);
             }
-        }
-            for x in 0..length {
+            for x in 0..chapters.len() {
                 let rec = chapter_get_recommended_level(chapters[x], None);
                 INITIAL_REC_LEVEL[x] = rec;
                 if str_start_with(chapters[x].cid, "CID_M021") { chapter_set_flag(chapters[x], 131, None); }
@@ -284,6 +307,7 @@ pub fn get_initial_levels() {
             for x in 1..790 {
                 let level = get_level(t_list[x], None); 
                 INITIAL_LEVEL[x] = level; 
+
                 let assetForce = person_get_AssetForce(t_list[x], None);
                 if assetForce == 0 { 
                     increaseCaps(t_list[x], 5, false);
@@ -382,9 +406,9 @@ pub fn get_initial_levels() {
                 }
             }
             for x in 88..758 { auto_level_enemies(t_list[x], 1, x); }
-            for x in 8..110 {
+            for x in 8..job_count {
                 if x < 26 && 10 < x { continue; } 
-                let job = &t_list2[x];
+                let job = &triabolical2[x]; 
                 let diff_growL = job_get_DiffGrowL(job, None);
                 let diff_growH = job_get_DiffGrowH(job, None);
                 for i in 0..9 {
@@ -401,7 +425,7 @@ pub fn get_initial_levels() {
         if LEVEL_SET == 0 && GameVariableManager::get_bool( "G_Cleared_M004".into() ) {
             for x in 8..job_count {
                 if x < 26 && 10 < x { continue; } 
-                let job = &t_list2[x];
+                let job = &triabolical2[x]; 
                 let diff_growL = job_get_DiffGrowL(job, None);
                 let diff_growH = job_get_DiffGrowH(job, None);
                 for i in 0..8 {
@@ -421,25 +445,25 @@ pub fn get_initial_levels() {
         println!("Current mode {}", LEVEL_SET);
         if LEVEL_SET == 0 && is_NG {
             LEVEL_SET = 2;
-            player_cap_increase = 40;
-            npc_cap_increase = 40;
-            fx_cap_increase = 40;
+            player_cap_increase = 30;
+            npc_cap_increase = 30;
+            fx_cap_increase = 30;
             generic_growth = 5;
             println!("Setting mode to NG+");
         }
         else if LEVEL_SET == 2 && !is_NG {
             LEVEL_SET = 1;
-            player_cap_increase = -40;
-            npc_cap_increase = -40;
-            fx_cap_increase = -40;
+            player_cap_increase = -30;
+            npc_cap_increase = -30;
+            fx_cap_increase = -30;
             generic_growth = -5;
             println!("Setting mode to NG from NG+");
         }
         else if LEVEL_SET == 1 && is_NG {
             LEVEL_SET = 2;
-            player_cap_increase = 40;
-            npc_cap_increase = 40;
-            fx_cap_increase = 40;
+            player_cap_increase = 30;
+            npc_cap_increase = 30;
+            fx_cap_increase = 30;
             generic_growth = 5;
             println!("Setting mode to NG+ from NG");
         }
@@ -463,14 +487,14 @@ pub fn get_initial_levels() {
                     None => {}
                 }
             }
-            for x in 1000..1500 {
+            for x in 1000..person_count {
                 if person_get_AssetForce(t_list[x], None) != 0 { increaseCaps(t_list[x], npc_cap_increase, true); } 
             }
         }
         if generic_growth != 0 {
             for x in 8..job_count {
                 if x < 26 && 10 < x { continue; } 
-                let job = &t_list2[x];
+                let job = &triabolical2[x];
                 let diff_growL = job_get_DiffGrowL(job, None);
                 let diff_growH = job_get_DiffGrowH(job, None);
                 for i in 0..8 {
@@ -499,10 +523,7 @@ pub fn promote_person(this: &PersonData, total_level: i32){
             }
             else { person_set_Jid(this, high_job, None); }
         }
-        else { 
-            println!("{} is promoted", this.name.get_string().unwrap());
-             person_set_Jid(this,job_get_high_job1(job, None), None);
-        }
+        else {  person_set_Jid(this,job_get_high_job1(job, None), None);}
         let job2 = GetJob(this, None);
         let internal_level = get_job_internal_level(job2, None);
         let mut newLevel = total_level - internal_level as i32;
@@ -575,7 +596,6 @@ pub fn auto_level_enemies(this: &PersonData, enemy_level: i32, index: usize){
                 else {
                     let name = get_Name(this, None).get_string().unwrap();
                     let new_person_level = total_level - 20;
-                  //  println!("#{} - {} is at level {}/{}", index, name, new_person_level, total_level);
                     set_level(this, new_person_level.try_into().unwrap(), None);
                 }
             }
@@ -611,7 +631,6 @@ pub fn auto_level_persons(){
     let diff = GameUserData::get_difficulty(false);
     update_recommendedLevel();
     unsafe { 
-
         let mut player_average = GetAverageLevel(2, 14 - 2*diff, None) - 3;
         AVERAGE = player_average;
         if player_average < 1 { player_average = 1; }
@@ -677,3 +696,4 @@ pub fn auto_level_persons(){
         }
     }
 }
+

@@ -7,15 +7,15 @@ use skyline::patching::Patch;
 use engage::force::Force;
 use crate::engage_functions::*;
 use crate::autolevel::*;
+use crate::autolevel;
+use unity::il2cpp::object::Array;
 pub const AUTOLEVEL_KEY: &str = "G_AUTOLEVEL";
 // Misc things
 
 //Toggle for Autoleveling bench
 pub struct AutolevelMod;
 impl ConfigBasicMenuItemSwitchMethods for AutolevelMod {
-    fn init_content(this: &mut ConfigBasicMenuItem){
-        GameVariableManager::make_entry(AUTOLEVEL_KEY, 1);
-    }
+    fn init_content(this: &mut ConfigBasicMenuItem){ GameVariableManager::make_entry(AUTOLEVEL_KEY, 0); } 
     extern "C" fn custom_call(this: &mut ConfigBasicMenuItem, _method_info: OptionalMethod) -> BasicMenuResult {
         let toggle =  GameVariableManager::get_bool(AUTOLEVEL_KEY);
         let result = ConfigBasicMenuItem::change_key_value_b(toggle);
@@ -25,20 +25,18 @@ impl ConfigBasicMenuItemSwitchMethods for AutolevelMod {
             Self::set_help_text(this, None);
             this.update_text();
             return BasicMenuResult::se_cursor();
-        } else {return BasicMenuResult::new(); }
+        } else { return BasicMenuResult::new();  }
     }
     extern "C" fn set_help_text(this: &mut ConfigBasicMenuItem, _method_info: OptionalMethod){
-        let typeC =  GameVariableManager::get_bool(AUTOLEVEL_KEY);
-        if !typeC {this.help_text = format!("Units will not be autoleveled at the end of the chapter.").into(); }
-        else {this.help_text = format!("Low level units will be autoleveled at the end of the chapter.").into(); }
+        if ! GameVariableManager::get_bool(AUTOLEVEL_KEY) { this.help_text = "Units will not be autoleveled at the end of the chapter.".into();  }
+        else { this.help_text = "Low level units will be autoleveled at the end of the chapter.".into();   }
     }
     extern "C" fn set_command_text(this: &mut ConfigBasicMenuItem, _method_info: OptionalMethod){
-        let type_C =  GameVariableManager::get_bool(AUTOLEVEL_KEY);
-        if !type_C {this.command_text = format!("Off").into(); }
-        else {this.command_text  = format!("On").into(); }
+        if !GameVariableManager::get_bool(AUTOLEVEL_KEY) { this.command_text = Off_str();  }
+        else { this.command_text  = On_str();}
     }
 }
-extern "C" fn auto() -> &'static mut ConfigBasicMenuItem { ConfigBasicMenuItem::new_switch::<AutolevelMod>("Autolevel Bench Units") }
+extern "C" fn auto() -> &'static mut ConfigBasicMenuItem { ConfigBasicMenuItem::new_switch::<AutolevelMod>("Autolevel Bench")   }
 pub fn auto_install(){ cobapi::install_game_setting(auto); }
 
 //Bypassing the internal level limit in the unit$$class change until Level 99
@@ -47,68 +45,64 @@ pub fn classChange(this: & mut Unit, job: &JobData, item: &u8, method_info: Opti
     let internal_level = this.m_InternalLevel;
     let current_level = this.m_Level;
     let mut newLevel = 1;
-    let mut newInternal = 0;
+    let mut newInternal: i32 = 0;
     unsafe {
-        if job_is_low(this.m_Job, None) && jobdata_get_max_level(this.m_Job, None) == 99 {
-            if !job_is_low(job, None){
+        let old_type = autolevel::CLASS_TYPE[ JobData::get_index(this.m_Job.jid) as usize ];
+        let new_type = autolevel::CLASS_TYPE[ JobData::get_index(job.jid) as usize ];
+
+        //Special + Promoted 
+        if old_type >= 1 {
+            //to Special/Promoted 
+            if new_type >= 1 {
                 newLevel = current_level;
-                newInternal = internal_level;
-            }
-            else if jobdata_get_max_level(job, None) == 99 && job_is_low(job, None) {
-                newLevel = current_level;
-                newInternal = internal_level;
-            }
-            else if job_is_low(job, None) && jobdata_get_max_level(job, None) == 20 {
-                newLevel = 1;
-                newInternal = current_level as i8 - 1 + internal_level;
-            }
-        }
-        else if job_is_low(this.m_Job, None) && jobdata_get_max_level(this.m_Job, None) == 20 {
-            if !job_is_low(job, None) {
-                newLevel = 1;
-                newInternal = current_level as i8 - 1 + internal_level;
-            }
-            else {
-                newLevel = current_level;
-                newInternal = internal_level;
-                if newLevel == 20 && (job_is_low(job, None) && jobdata_get_max_level(job, None) == 20) {
-                    newLevel = 1;
-                    newInternal = current_level as i8 - 1 + internal_level;
+                newInternal = internal_level as i32;
+                if newLevel >= 99 {
+                    newLevel = 21;
+                    newInternal = 78 + internal_level as i32;
                 }
             }
-        }
-        else if !job_is_low(this.m_Job, None){
-            if !job_is_low(job, None) && jobdata_get_max_level(job, None) == 20 {
-                call_original!(this, job, item, method_info);
-            }
-            else if job_is_low(job, None) && jobdata_get_max_level(job, None) == 20 {
-                newLevel = 1;
-                newInternal = current_level as i8 - 1 + internal_level;
-            }
-            else {
+            else if old_type == 2 && current_level < 20 {   // Special Class to Base Class less base class level cap
                 newLevel = current_level;
-                newInternal = internal_level;
+                newInternal = internal_level as i32;
+            }
+            else {  //to base
+                newLevel = 1;
+                newInternal = current_level as i32 + internal_level as i32 - 1;
             }
         }
-        if newLevel == 99 {
-            newLevel = 21;
-            newInternal = newInternal + 99 - 22;
+        // Base 
+        else {
+            if (new_type == 2 || new_type == 0) && current_level < 20 { // to special/base and less than base class level cap
+                newLevel = current_level;
+                newInternal = internal_level as i32;
+            }
+            else {            // to promoted/special
+                newLevel = 1;
+                newInternal = current_level as i32 + internal_level as i32 - 1;
+            }
         }
         if newInternal > 99 { newInternal = 99; }
         call_original!(this, job, item, method_info);
         this.m_Level = newLevel;
-        this.m_InternalLevel = newInternal;
+        this.m_InternalLevel = newInternal as i8;
         if JobLearnSkill(job, None) <= newLevel.into() { LearnJobSkill_Unit(this, None); } 
     }
 }
+#[unity::from_offset("App", "HubFacilityData", "SetFirstAccessFlag")]
+fn hub_facility_set_access_flag(this: &HubFacilityData, method_info: OptionalMethod);
 
 //When Chapter is completed to get ignots and well
+//activate dragon ride when chapter 11 ends
 #[skyline::hook(offset = 0x02513620)]
 pub fn get_ignots(this: &GameUserData, method_info: OptionalMethod){
     call_original!(this, None);
     updateIgnots();
+    let dragon_ride = HubFacilityData::get("AID_ドラゴンライド").unwrap();
+    if GameVariableManager::get_bool("G_Cleared_M011") && dragon_ride.is_complete() {
+       unsafe { hub_facility_set_access_flag(dragon_ride, None); }
+    }
+    
 }
-
 //Auto Ignots and well
 pub fn updateIgnots(){
     unsafe {
@@ -133,18 +127,19 @@ pub fn updateIgnots(){
         if GameVariableManager::get_number("G_拠点_裏武器イベント") > 1 {
             let can_get_items = get_IsItemReturn(None);
             if can_get_items == false {
-                if GameVariableManager::get_bool("G_NG") { set_well_level(5, None) }
-                else { set_well_level(3, None); }
-                set_well_flag(2, None);
+                if GameVariableManager::get_bool("G_NG") { set_well_level(4, None) }
+                else if GameVariableManager::get_bool("G_Cleared_E006"){ set_well_level(3, None); }
+                else { set_well_level(2, None); }
                 let seed = 4*(ironCount + steelCount + silverCount + 1750);
                 set_seed(seed, None);
+                set_well_flag(2, None);
             }
-            else if get_well_exchangeLevel(None) < 3 { 
-                if GameVariableManager::get_bool("G_NG") { set_well_level(5, None); }
-                else { set_well_level(3, None); }
+            else if get_well_exchangeLevel(None) < 2 { 
+                if GameVariableManager::get_bool("G_NG") { set_well_level(4, None) }
+                else if GameVariableManager::get_bool("G_Cleared_E006"){ set_well_level(3, None); }
+                else { set_well_level(2, None); }
             }
         }
-
         if GameVariableManager::get_bool(AUTOLEVEL_KEY) { 
             if GameVariableManager::get_bool("G_NG"){ 
                 let typeC = GameVariableManager::get_number("G_NG_OPTION");
@@ -164,17 +159,6 @@ pub fn JobLearnSkill(this: &JobData, method_info: OptionalMethod) -> i32 {
         if job_is_low(this, None) && max_level == 99 { return 25; }
         else if !job_is_low(this, None) { return 5; }
         return 25;
-    }
-}
-#[skyline::hook(offset=0x02b414f0)]
-pub fn is_recollection(this: u64, method_info: OptionalMethod){
-    call_original!(this, method_info);
-    if GameVariableManager::get_bool("G_NG"){
-        unsafe {
-            let instance = GameUserData::get_instance();
-            let status = get_UserData_Status(instance, None);
-            status.value = 8;
-        }
     }
 }
 pub fn get_number_of_chapters_completed() -> i32 {
@@ -228,36 +212,37 @@ pub fn get_dynType(arg: u64, index: i32,  method_info: OptionalMethod) -> i32;
 #[unity::from_offset("App", "ScriptUtil", "TryGetString")]
 pub fn try_get_string(arg: u64, index: i32, nothing: &Il2CppString, method_info: OptionalMethod) -> &Il2CppString;
 
+//Prevent units from joining twice
 #[skyline::hook(offset=0x02199cb0)]
 pub fn join_unit_check(arg: u64, index: i32, method_info: OptionalMethod) -> Option<&'static PersonData> {
     unsafe {
-    let d_type = get_dynType(arg, index, None);
-    if d_type == 0 { call_original!(arg, index, method_info) }
-    else if d_type == 4 {
-        let pid = try_get_string(arg, index, "nothing".into(), method_info);
-        if pid.get_string().unwrap() == "PID_リュール" {
-            call_original!(arg, index, method_info)
+        let d_type = get_dynType(arg, index, None);
+        if d_type == 0 { call_original!(arg, index, method_info) }
+        else if d_type == 4 {
+            let pid = try_get_string(arg, index, "nothing".into(), method_info);
+            if pid.get_string().unwrap() == "PID_リュール" {
+                call_original!(arg, index, method_info)
+            }
+            else if !is_recruited(pid) { call_original!(arg, index, method_info) }
+            else { return None; }
         }
-        else if !is_recruited(pid) { call_original!(arg, index, method_info) }
-        else { return None; }
+        else { call_original!(arg, index, method_info) }
     }
-    else { call_original!(arg, index, method_info) }
-}
-
 }
 #[skyline::from_offset(0x025c9240)]
 pub fn Mess_Get(label: &Il2CppString, method_info: OptionalMethod) -> &'static Il2CppString;
 
-pub fn get_str(label: &Il2CppString) -> String {
-    unsafe {
-        Mess_Get(label, None).get_string().unwrap()
-    }
-}
+pub fn get_str(label: &Il2CppString) -> String { unsafe { Mess_Get(label, None).get_string().unwrap()  } }
+pub fn On_str() -> &'static Il2CppString { unsafe { Mess_Get("MID_CONFIG_TUTORIAL_ON".into(), None) } }
+pub fn Off_str() -> &'static Il2CppString { unsafe { Mess_Get("MID_CONFIG_TUTORIAL_OFF".into(), None) } }
 
-#[unity::hook("App","UnitUtil", "SummonCreate")]
-pub fn SummonCreate(owner: &Unit, rank: i32, person: &PersonData, method_info: OptionalMethod) -> &'static Unit {
-    for i in 1..32*32 {
-        call_original!(owner, rank, person, method_info);
-    } 
-    return call_original!(owner, rank, person, method_info);
+//Removing Void Curse with opponent always hit
+#[unity::hook("App", "PersonData", "set_CommonSids")]
+pub fn set_sid(this: &PersonData, value: &mut Array<&Il2CppString>, method_info: OptionalMethod ){
+    for i in 0..value.len() {
+        if value[i].get_string().unwrap() ==  "SID_虚無の呪い" {
+            value[i] = "SID_相手の命中１００".into();
+        }
+    }
+    call_original!(this, value, method_info);
 }

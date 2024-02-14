@@ -14,8 +14,17 @@ use crate::autolevel::NG_KEY;
 //Swap FX chapter copies with the actual unit
 #[skyline::from_offset(0x01cfa570)]
 pub fn disposdata_set_pid(this: &DisposData, value: &Il2CppString, method_info: OptionalMethod);
+
 #[skyline::from_offset(0x01cfa5b0)]
 pub fn disposdata_set_flag(this: &DisposData, value: &mut DisposData_FlagField, method_info: OptionalMethod);
+
+#[skyline::from_offset(0x01cfa5f0)]
+pub fn disposdata_set_sid(this: &DisposData, value: &Il2CppString, method_info: OptionalMethod);
+#[skyline::from_offset(0x02515fa0)]
+pub fn is_encounter_map(this: &GameUserData, method_info: OptionalMethod) -> bool;
+
+#[skyline::from_offset(0x02515b90)]
+pub fn is_completed(this: &GameUserData, cid: &Il2CppString, method_info: OptionalMethod) -> bool;
 
 pub fn replace_fx_data(){
     unsafe {
@@ -58,21 +67,6 @@ pub fn replace_fx_data(){
             }
         }
     }
-}
-
-#[skyline::from_offset(0x01cfa5f0)]
-pub fn disposdata_set_sid(this: &DisposData, value: &Il2CppString, method_info: OptionalMethod);
-
-//to prevent the DLC characters from not being able to be deployed in FX 
-#[skyline::hook(offset=0x01a0c6c0)]
-pub fn unit_set_status(unit: &Unit, status: i64, method_info: OptionalMethod){
-    if unit.m_Force.is_some() {
-        if unit.m_Force.unwrap().m_Type == 1 && status == 67108864 { return;  }
-    }
-    // status that marks unit as defect and does not appear in the sortie
-    if status == 1073741832 || status == 35184372088832 {  return;  }
-    if status == 1073741824 { if unit.person.name.get_string().unwrap() == "MPID_Lueur" { return;  } }
-    call_original!(unit, status, method_info);
 }
 
 pub fn all_revival_stones(){
@@ -122,22 +116,41 @@ pub fn all_revival_stones(){
     }
 }
 }
+pub fn to_fx_min_level(fileName: &Il2CppString){
+    let mut to_level: i32 = 0;
+    if str_contains(fileName, "E001"){ to_level = 15; }
+    if str_contains(fileName, "E002"){ to_level = 18; }
+    if str_contains(fileName, "E003"){ to_level = 21; }
+    if str_contains(fileName, "E004"){ to_level = 23; }
+    if str_contains(fileName, "E005"){ to_level = 25; }
+    if str_contains(fileName, "E005"){ to_level = 28; }
+    if to_level == 0 { return; }
+    autolevel_party_to_level(to_level);
+}
+
 #[skyline::hook(offset=0x029c4120)]
 pub fn mapdispos_load(fileName: &Il2CppString, method_info: OptionalMethod){
-    auto_level_persons();   // Autolevel Peeps here
-    let cap = ng::calculate_player_cap();
-    // load dispos here
+    auto_level_persons(); 
     call_original!(fileName, method_info);
     replace_fx_data();
+    to_fx_min_level(fileName);
+    let cap = ng::calculate_player_cap();
+    if GameVariableManager::get_bool("G_RSH"){
+        all_revival_stones();
+        return;
+    } 
     // If FX then autolevel party 
     if str_contains(fileName, "E00")  {
         GameVariableManager::set_number("G_NG_CAP".into(), -1);
         unsafe {
             let instance = GameUserData::get_instance();
             let status = get_UserData_Status(instance, None);
-            if status.value != 8192 {  // if not map replay 
-                if str_contains(fileName, "E006"){ autolevel_party(10, 2, true); }
-                else { autolevel_party(10, 3, true); }
+            if !is_encounter_map(instance, None) && !is_completed(instance, fileName, None) {  // if map is not completed and not a skrimish map
+                if str_contains(fileName, "E006"){ autolevel_party(10, 3, true); }
+                else {
+                    autolevel_party(10, 4, true);
+                    autolevel_party(10, 5, false);
+                }
                 autolevel_DLC();
             }
         }
@@ -225,6 +238,7 @@ pub fn get_job_style(this: &JobData, method_info: OptionalMethod) -> Option<&Il2
 
 pub fn can_use_emblem(data: &DisposData, emblem: usize) -> bool {
     unsafe {
+        if !GameVariableManager::get_bool(NG_KEY) { return false; }
         if GodData::get(EMBLEMS[emblem].into()).is_none() { return false; }
         if EMBLEMS_USED[emblem] { return false; }
         if DisposData_get_person(data, None).is_some() {

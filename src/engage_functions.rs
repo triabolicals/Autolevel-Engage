@@ -223,6 +223,8 @@ pub fn unit_set_Hp(this: &Unit, value: i32, method_info: OptionalMethod);
 
 #[unity::from_offset("App", "Unit", "set_Exp")]
 pub fn unit_set_exp(this: &Unit, exp: i32, method_info: OptionalMethod);
+#[unity::from_offset("App", "Unit", "UpdateWeaponMask")]
+pub fn unit_update_weapon_mask(this: &Unit, method_info: OptionalMethod);
 
 #[unity::from_offset("App", "Unit", "set_InternalLevel")]
 pub fn unit_set_internal_level(this: &Unit, level: i32, method_info: OptionalMethod);
@@ -310,8 +312,18 @@ pub fn disposdata_set_AI_attack_value(this: &DisposData, value: &Il2CppString, m
 
 #[unity::from_offset("App", "DisposData", "get_Pid")]
 pub fn disposdata_get_pid(this: &DisposData, method_info: OptionalMethod) -> Option<&'static Il2CppString>;
+
 #[unity::from_offset("App", "DisposData", "get_Sid")]
 pub fn disposdata_get_sid(this: &DisposData, method_info: OptionalMethod) -> Option<&'static Il2CppString>;
+
+#[skyline::from_offset(0x01cfa570)]
+pub fn disposdata_set_pid(this: &DisposData, value: &Il2CppString, method_info: OptionalMethod);
+
+#[skyline::from_offset(0x01cfa5b0)]
+pub fn disposdata_set_flag(this: &DisposData, value: &mut DisposData_FlagField, method_info: OptionalMethod);
+
+#[skyline::from_offset(0x01cfa5f0)]
+pub fn disposdata_set_sid(this: &DisposData, value: &Il2CppString, method_info: OptionalMethod);
 
 //Resets convoy
 #[skyline::from_offset(0x022a1180)]
